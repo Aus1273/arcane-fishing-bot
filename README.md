@@ -1,4 +1,4 @@
-Probably Adolf Chinkler reading this, build it yourself this ikea.
+Probably Adolf Chinkler reading this, build it yourself this is an ikea.
 
 1. Download Rust https://rustup.rs/
 
