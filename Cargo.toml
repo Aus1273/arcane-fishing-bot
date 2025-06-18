@@ -1,0 +1,79 @@
+[package]
+name = "arcane-fishing-bot"
+version = "1.0.0"
+edition = "2021"
+authors = ["Your Name <your.email@example.com>"]
+description = "A sophisticated fishing bot for Arcane Odyssey with advanced color detection and OCR"
+license = "MIT"
+repository = "https://github.com/yourusername/arcane-fishing-bot"
+keywords = ["gaming", "automation", "gui", "rust"]
+categories = ["games", "gui"]
+
+[dependencies]
+# GUI Framework
+eframe = "0.24"
+egui = "0.24"
+egui_extras = "0.24"
+
+# Async Runtime
+tokio = { version = "1.35", features = ["full"] }
+
+# Image Processing & Screenshots
+image = { version = "0.24", features = ["png", "jpeg"] }
+screenshots = "0.8"
+
+# Input Simulation
+enigo = "0.2.1"
+
+# OCR - Using rusty-tesseract which is easier to install on Windows
+rusty-tesseract = "1.1"
+
+# Windows-specific APIs
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = [
+    "winuser", 
+    "windef", 
+    "winnt", 
+    "processthreadsapi",
+    "shellapi",
+    "combaseapi"
+] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Date/Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Logging
+log = "0.4"
+env_logger = "0.11"
+
+# Error Handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Concurrency
+parking_lot = "0.12"
+once_cell = "1.19"
+
+# File System
+directories = "5.0"
+
+# Performance
+rayon = "1.8"
+
+# Networking & HTTP
+reqwest = { version = "0.11", features = ["json", "multipart", "blocking"] }
+url = "2.4"
+
+# Additional utilities
+uuid = { version = "1.6", features = ["v4"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+strip = true
+panic = "abort"
