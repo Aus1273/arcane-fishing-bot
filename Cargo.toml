@@ -28,17 +28,6 @@ enigo = "0.2.1"
 # OCR - Using rusty-tesseract which is easier to install on Windows
 rusty-tesseract = "1.1"
 
-# Windows-specific APIs
-[target.'cfg(windows)'.dependencies]
-winapi = { version = "0.3", features = [
-    "winuser", 
-    "windef", 
-    "winnt", 
-    "processthreadsapi",
-    "shellapi",
-    "combaseapi"
-] }
-
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -71,9 +60,20 @@ url = "2.4"
 # Additional utilities
 uuid = { version = "1.6", features = ["v4"] }
 
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = [
+    "winuser",
+    "windef",
+    "winnt",
+    "processthreadsapi",
+    "shellapi",
+    "combaseapi",
+] }
+
 [profile.release]
 lto = true
 codegen-units = 1
 opt-level = 3
 strip = true
 panic = "abort"
+
