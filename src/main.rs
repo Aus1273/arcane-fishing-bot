@@ -591,7 +591,7 @@ mod input {
         pub fn press_key(&mut self, key: char) -> Result<()> {
             self.check_failsafe()?;
 
-            let key_code = match key {
+            let _key_code = match key {
                 '5' => 0x35, // VK_5
                 '6' => 0x36, // VK_6
                 _ => return Err(anyhow!("Unsupported key: {}", key)),
@@ -600,9 +600,9 @@ mod input {
             #[cfg(windows)]
             {
                 // Use Windows API for better Roblox compatibility
-                self.send_key_windows(key_code, false)?; // Key down
+                self.send_key_windows(_key_code, false)?; // Key down
                 thread::sleep(Duration::from_millis(50));
-                self.send_key_windows(key_code, true)?; // Key up
+                self.send_key_windows(_key_code, true)?; // Key up
                 thread::sleep(Duration::from_millis(50));
             }
 
@@ -1219,8 +1219,29 @@ mod bot {
             );
 
             // Run bot in separate thread
-            let bot_clone = self.clone();
+            let config = self.config.clone();
+            let state = self.state.clone();
+            let lifetime_stats = self.lifetime_stats.clone();
+            let detector = self.detector.clone();
+            let webhook = self.webhook.clone();
+            let performance_monitor = self.performance_monitor.clone();
+
             thread::spawn(move || {
+                let bot_clone = Self {
+                    config: config.clone(),
+                    state,
+                    lifetime_stats,
+                    detector,
+                    input: Arc::new(Mutex::new(RobloxInputController::new(
+                        config.read().failsafe_enabled,
+                    ))),
+                    webhook,
+                    ocr: Arc::new(Mutex::new(
+                        EnhancedOCRHandler::new()
+                            .unwrap_or_else(|_| EnhancedOCRHandler::new().unwrap()),
+                    )),
+                    performance_monitor,
+                };
                 bot_clone.run_loop();
             });
         }
