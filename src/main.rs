@@ -6,6 +6,7 @@ use eframe::egui;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::f32::consts::PI;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -830,7 +831,24 @@ mod webhook {
 mod ocr {
     use super::*;
     use image::{GrayImage, Luma, RgbaImage};
+    use once_cell::sync::Lazy;
     use rusty_tesseract::{Args, Image as TessImage};
+
+    static OCR_ARGS: Lazy<Args> = Lazy::new(|| {
+        let mut config_variables = HashMap::new();
+        config_variables.insert(
+            "tessedit_char_whitelist".to_string(),
+            "0123456789%".to_string(),
+        );
+
+        Args {
+            lang: "eng".to_string(),
+            dpi: Some(150),
+            psm: Some(8),
+            oem: Some(3),
+            config_variables,
+        }
+    });
 
     pub struct EnhancedOCRHandler {
         cache: HashMap<String, (Option<u32>, Instant)>,
@@ -892,24 +910,9 @@ mod ocr {
             ));
             binary.save(&temp_path)?;
 
-            // Simple Tesseract config
-            let mut config_variables = HashMap::new();
-            config_variables.insert(
-                "tessedit_char_whitelist".to_string(),
-                "0123456789%".to_string(),
-            );
-
-            let args = Args {
-                lang: "eng".to_string(),
-                dpi: Some(150),
-                psm: Some(8),
-                oem: Some(3),
-                config_variables,
-            };
-
             // Run OCR once
             let result = if let Ok(image_tess) = TessImage::from_path(&temp_path) {
-                if let Ok(output) = rusty_tesseract::image_to_string(&image_tess, &args) {
+                if let Ok(output) = rusty_tesseract::image_to_string(&image_tess, &OCR_ARGS) {
                     self.parse_hunger_text(&output)
                 } else {
                     None
@@ -1689,30 +1692,116 @@ mod ui {
             )
         }
 
+        fn night_sky(&self) -> Color32 {
+            Color32::from_rgb(10, 12, 26)
+        }
+
+        fn panel_fill(&self) -> Color32 {
+            Color32::from_rgb(18, 20, 38)
+        }
+
+        fn rune_border(&self) -> Stroke {
+            Stroke {
+                width: 1.5,
+                color: Color32::from_rgb(108, 86, 171),
+            }
+        }
+
+        fn gold_glow(&self) -> Color32 {
+            Color32::from_rgb(230, 180, 80)
+        }
+
+        fn arcane_blue(&self) -> Color32 {
+            Color32::from_rgb(70, 130, 200)
+        }
+
+        fn arcane_purple(&self) -> Color32 {
+            Color32::from_rgb(120, 80, 200)
+        }
+
+        fn emerald(&self) -> Color32 {
+            Color32::from_rgb(70, 180, 130)
+        }
+
+        fn ember_red(&self) -> Color32 {
+            Color32::from_rgb(200, 70, 70)
+        }
+
+        fn aura_frame(&self, fill: Color32) -> Frame {
+            Frame::none()
+                .fill(fill)
+                .stroke(self.rune_border())
+                .rounding(10.0)
+                .inner_margin(12.0 * self.scale_factor)
+        }
+
+        fn phase_progress(&self, phase: &bot::FishingPhase) -> f32 {
+            match phase {
+                bot::FishingPhase::Idle => 0.05,
+                bot::FishingPhase::Casting => 0.25,
+                bot::FishingPhase::WaitingForBite => 0.45,
+                bot::FishingPhase::Reeling => 0.7,
+                bot::FishingPhase::Caught => 1.0,
+                bot::FishingPhase::Feeding => 0.6,
+                bot::FishingPhase::Error => 0.0,
+            }
+        }
+
         fn render_header(&mut self, ui: &mut Ui) {
             #[cfg(target_os = "macos")]
             {
                 self.render_macos_toolbar(ui);
             }
-            ui.horizontal(|ui| {
-                ui.heading(
-                    RichText::new("🎣 Arcane Odyssey Fish Bot")
-                        .size(self.scaled_font_size(24.0))
-                        .strong()
-                        .color(Color32::from_rgb(100, 200, 255)),
-                );
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    ui.checkbox(&mut self.config.always_on_top, "📌 Always on Top");
+
+            self.aura_frame(self.panel_fill()).show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    let pin_label = if self.config.always_on_top {
+                        RichText::new("📌").color(self.gold_glow())
+                    } else {
+                        RichText::new("📌").color(self.arcane_purple())
+                    };
+
+                    ui.vertical(|ui| {
+                        ui.horizontal(|ui| {
+                            ui.heading(
+                                RichText::new("Arcane Fishing Automaton")
+                                    .size(self.scaled_font_size(26.0))
+                                    .strong()
+                                    .color(self.gold_glow()),
+                            );
+                            ui.add_space(8.0);
+                            ui.label(
+                                RichText::new("RUST EDITION")
+                                    .background_color(Color32::from_rgba_unmultiplied(
+                                        60, 40, 100, 200,
+                                    ))
+                                    .color(self.gold_glow())
+                                    .strong()
+                                    .size(self.scaled_font_size(12.0)),
+                            );
+                        });
+                        ui.label(
+                            RichText::new("Dark Tides, Bright Runes")
+                                .color(self.arcane_blue())
+                                .size(self.scaled_font_size(13.0)),
+                        );
+                    });
+
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        let pin = ui
+                            .add(
+                                Button::new(pin_label)
+                                    .min_size(self.scaled_button_size(32.0, 32.0))
+                                    .fill(Color32::from_rgba_unmultiplied(40, 30, 70, 180)),
+                            )
+                            .on_hover_text("Toggle always on top");
+
+                        if pin.clicked() {
+                            self.config.always_on_top = !self.config.always_on_top;
+                        }
+                    });
                 });
             });
-
-            self.add_scaled_space(ui, 4.0);
-            ui.label(
-                RichText::new("⚡ Rust Edition")
-                    .size(self.scaled_font_size(12.0))
-                    .color(Color32::from_rgb(150, 255, 150)),
-            );
-            ui.separator();
         }
 
         #[cfg(target_os = "macos")]
@@ -1731,25 +1820,19 @@ mod ui {
         }
 
         fn render_bottom_buttons(&mut self, ui: &mut Ui) {
-            // Calculate if buttons can fit horizontally
-            let available_width = ui.available_width();
-            let min_button_width = 180.0 * self.scale_factor; // Minimum readable width
-            let button_height = self.scaled_button_size(40.0, 40.0).y;
-            let spacing = 10.0 * self.scale_factor;
+            self.aura_frame(self.panel_fill()).show(ui, |ui| {
+                ui.horizontal_centered(|ui| {
+                    let size = self.scaled_button_size(52.0, 52.0);
 
-            let total_width_needed = (min_button_width * 2.0) + spacing;
-
-            if available_width >= total_width_needed {
-                // Horizontal layout when there's enough space
-                let button_width = (available_width - spacing) / 2.0;
-                ui.horizontal(|ui| {
                     if ui
-                        .add_sized(
-                            [button_width, button_height],
+                        .add(
                             Button::new(
-                                RichText::new("⚙️ Advanced Settings")
-                                    .size(self.scaled_font_size(12.0)),
-                            ),
+                                RichText::new("⚙️")
+                                    .size(self.scaled_font_size(20.0))
+                                    .color(self.gold_glow()),
+                            )
+                            .min_size(size)
+                            .fill(Color32::from_rgba_unmultiplied(40, 30, 70, 200)),
                         )
                         .clicked()
                     {
@@ -1757,79 +1840,39 @@ mod ui {
                     }
 
                     if ui
-                        .add_sized(
-                            [button_width, button_height],
+                        .add(
                             Button::new(
-                                RichText::new("📊 Advanced Statistics")
-                                    .size(self.scaled_font_size(12.0)),
-                            ),
+                                RichText::new("📊")
+                                    .size(self.scaled_font_size(20.0))
+                                    .color(self.arcane_blue()),
+                            )
+                            .min_size(size)
+                            .fill(Color32::from_rgba_unmultiplied(40, 30, 70, 200)),
                         )
                         .clicked()
                     {
                         self.show_advanced_stats = !self.show_advanced_stats;
                     }
                 });
-            } else {
-                // Vertical layout when window is too narrow
-                let button_width = available_width;
-
-                if ui
-                    .add_sized(
-                        [button_width, button_height],
-                        Button::new(
-                            RichText::new("⚙️ Advanced Settings").size(self.scaled_font_size(12.0)),
-                        ),
-                    )
-                    .clicked()
-                {
-                    self.show_settings = !self.show_settings;
-                }
-
-                ui.add_space(spacing);
-
-                if ui
-                    .add_sized(
-                        [button_width, button_height],
-                        Button::new(
-                            RichText::new("📊 Advanced Statistics")
-                                .size(self.scaled_font_size(12.0)),
-                        ),
-                    )
-                    .clicked()
-                {
-                    self.show_advanced_stats = !self.show_advanced_stats;
-                }
-            }
+            });
         }
         pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-            // Enhanced styling
+            // Enhanced styling for dark fantasy aesthetic
             let mut style = (*cc.egui_ctx.style()).clone();
-            style.spacing.item_spacing = vec2(8.0, 6.0);
-            style.spacing.window_margin = egui::style::Margin::same(16.0);
-            style.spacing.button_padding = vec2(12.0, 8.0);
-            style.spacing.indent = 20.0;
+            style.spacing.item_spacing = vec2(10.0, 8.0);
+            style.spacing.window_margin = egui::style::Margin::same(18.0);
+            style.spacing.button_padding = vec2(14.0, 10.0);
+            style.spacing.indent = 22.0;
 
-            #[cfg(target_os = "macos")]
-            {
-                style.visuals = Visuals::light();
-                style.visuals.window_fill = Color32::from_rgb(236, 236, 236);
-                style.visuals.panel_fill = Color32::from_rgb(248, 248, 248);
-                style.visuals.widgets.inactive.bg_fill = Color32::from_rgb(224, 224, 224);
-                style.visuals.widgets.hovered.bg_fill = Color32::from_rgb(209, 209, 209);
-                style.visuals.widgets.active.bg_fill = Color32::from_rgb(179, 179, 179);
-                style.visuals.selection.bg_fill = Color32::from_rgb(120, 180, 255);
-            }
-
-            #[cfg(not(target_os = "macos"))]
-            {
-                style.visuals = Visuals::dark();
-                style.visuals.window_fill = Color32::from_rgb(15, 15, 20);
-                style.visuals.panel_fill = Color32::from_rgb(25, 25, 35);
-                style.visuals.widgets.inactive.bg_fill = Color32::from_rgb(40, 40, 55);
-                style.visuals.widgets.hovered.bg_fill = Color32::from_rgb(70, 130, 180);
-                style.visuals.widgets.active.bg_fill = Color32::from_rgb(100, 150, 200);
-                style.visuals.selection.bg_fill = Color32::from_rgb(100, 150, 200);
-            }
+            style.visuals = Visuals::dark();
+            style.visuals.override_text_color = Some(Color32::from_rgb(215, 225, 255));
+            style.visuals.window_fill = Color32::from_rgb(8, 10, 22);
+            style.visuals.panel_fill = Color32::from_rgb(16, 18, 34);
+            style.visuals.widgets.inactive.bg_fill = Color32::from_rgb(28, 32, 54);
+            style.visuals.widgets.hovered.bg_fill = Color32::from_rgb(60, 80, 130);
+            style.visuals.widgets.active.bg_fill = Color32::from_rgb(90, 110, 170);
+            style.visuals.selection.bg_fill = Color32::from_rgb(190, 140, 70);
+            style.visuals.widgets.noninteractive.fg_stroke.color = Color32::from_rgb(215, 225, 255);
 
             cc.egui_ctx.set_style(style);
 
@@ -1968,6 +2011,10 @@ mod ui {
                         self.render_control_panel(ui);
                         self.add_scaled_space(ui, 12.0);
 
+                        // Status & Progress
+                        self.render_status_panel(ui);
+                        self.add_scaled_space(ui, 12.0);
+
                         // Enhanced Statistics Panel
                         self.render_statistics_panel(ui);
                         self.add_scaled_space(ui, 12.0);
@@ -2006,292 +2053,373 @@ mod ui {
 
     impl AdvancedFishingBotApp {
         fn render_control_panel(&mut self, ui: &mut Ui) {
-            Frame::none()
-                .fill(Color32::from_rgb(25, 25, 35))
-                .inner_margin(16.0)
-                .rounding(8.0)
-                .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        let state = self.bot.get_state();
+            self.aura_frame(self.panel_fill()).show(ui, |ui| {
+                let state = self.bot.get_state();
+                ui.heading(
+                    RichText::new("Arcane Controls")
+                        .size(self.scaled_font_size(18.0))
+                        .color(self.arcane_blue()),
+                );
+                ui.add_space(6.0 * self.scale_factor);
 
-                        // Start Button
-                        let start_enabled = !state.running;
-                        if ui
-                            .add_enabled(
-                                start_enabled,
-                                Button::new("▶ Start Bot")
-                                    .fill(if start_enabled {
-                                        Color32::from_rgb(50, 150, 50)
-                                    } else {
-                                        Color32::DARK_GRAY
-                                    })
-                                    .min_size(vec2(120.0, 40.0)),
+                ui.horizontal(|ui| {
+                    let button_size = self.scaled_button_size(140.0, 54.0);
+
+                    let start_enabled = !state.running;
+                    let start_button = Button::new(
+                        RichText::new("▶ Start")
+                            .size(self.scaled_font_size(16.0))
+                            .strong()
+                            .color(Color32::BLACK),
+                    )
+                    .min_size(button_size)
+                    .fill(if start_enabled {
+                        self.emerald()
+                    } else {
+                        Color32::from_rgba_unmultiplied(40, 60, 50, 140)
+                    });
+
+                    if ui.add_enabled(start_enabled, start_button).clicked() {
+                        self.bot.start();
+                    }
+
+                    let pause_label = if state.paused {
+                        "▶ Resume"
+                    } else {
+                        "⏸ Pause"
+                    };
+                    let pause_color = if state.paused {
+                        self.emerald()
+                    } else {
+                        Color32::from_rgb(200, 170, 60)
+                    };
+
+                    if ui
+                        .add_enabled(
+                            state.running,
+                            Button::new(
+                                RichText::new(pause_label)
+                                    .size(self.scaled_font_size(16.0))
+                                    .strong(),
                             )
-                            .clicked()
-                        {
-                            self.bot.start();
-                        }
+                            .min_size(button_size)
+                            .fill(pause_color),
+                        )
+                        .clicked()
+                    {
+                        self.bot.pause();
+                    }
 
-                        // Pause/Resume Button
-                        if state.running {
-                            let pause_text = if state.paused {
-                                "▶ Resume"
-                            } else {
-                                "⏸ Pause"
-                            };
-                            let pause_color = if state.paused {
-                                Color32::from_rgb(50, 150, 50)
-                            } else {
-                                Color32::from_rgb(200, 150, 50)
-                            };
+                    if ui
+                        .add_enabled(
+                            state.running,
+                            Button::new(
+                                RichText::new("⏹ Stop")
+                                    .size(self.scaled_font_size(16.0))
+                                    .strong(),
+                            )
+                            .min_size(button_size)
+                            .fill(self.ember_red()),
+                        )
+                        .clicked()
+                    {
+                        self.bot.stop();
+                    }
+                });
+            });
+        }
 
-                            if ui
-                                .add(
-                                    Button::new(pause_text)
-                                        .fill(pause_color)
-                                        .min_size(vec2(120.0, 40.0)),
-                                )
-                                .clicked()
-                            {
-                                self.bot.pause();
-                            }
-
-                            // Stop Button
-                            if ui
-                                .add(
-                                    Button::new("⏹ Stop")
-                                        .fill(Color32::from_rgb(200, 50, 50))
-                                        .min_size(vec2(120.0, 40.0)),
-                                )
-                                .clicked()
-                            {
-                                self.bot.stop();
-                            }
-                        } else {
-                            // Disabled buttons when not running
-                            ui.add_enabled(
-                                false,
-                                Button::new("⏸ Pause")
-                                    .fill(Color32::DARK_GRAY)
-                                    .min_size(vec2(120.0, 40.0)),
-                            );
-                            ui.add_enabled(
-                                false,
-                                Button::new("⏹ Stop")
-                                    .fill(Color32::DARK_GRAY)
-                                    .min_size(vec2(120.0, 40.0)),
-                            );
-                        }
-                    });
-
-                    ui.add_space(8.0);
-
-                    // Current Phase Indicator
-                    let state = self.bot.get_state();
-                    let phase_text = match state.current_phase {
-                        bot::FishingPhase::Idle => "🏠 Idle",
-                        bot::FishingPhase::Casting => "🎯 Casting",
-                        bot::FishingPhase::WaitingForBite => "⏳ Waiting for Bite",
-                        bot::FishingPhase::Reeling => "🎣 Reeling In",
-                        bot::FishingPhase::Caught => "🎉 Fish Caught!",
-                        bot::FishingPhase::Feeding => "🍖 Feeding",
-                        bot::FishingPhase::Error => "❌ Error State",
-                    };
-
-                    let phase_color = match state.current_phase {
-                        bot::FishingPhase::Idle => Color32::GRAY,
-                        bot::FishingPhase::Casting => Color32::from_rgb(100, 150, 255),
-                        bot::FishingPhase::WaitingForBite => Color32::from_rgb(255, 200, 100),
-                        bot::FishingPhase::Reeling => Color32::from_rgb(255, 150, 100),
-                        bot::FishingPhase::Caught => Color32::from_rgb(100, 255, 100),
-                        bot::FishingPhase::Feeding => Color32::from_rgb(255, 100, 255),
-                        bot::FishingPhase::Error => Color32::from_rgb(255, 100, 100),
-                    };
+        fn render_status_panel(&mut self, ui: &mut Ui) {
+            let state = self.bot.get_state();
+            self.aura_frame(Color32::from_rgb(22, 24, 46))
+                .show(ui, |ui| {
+                    let time = ui.ctx().input(|i| i.time);
+                    let glow = ((time as f32).sin() + 1.0) * 0.5;
+                    let icon_color = Color32::from_rgb(
+                        120,
+                        (80.0 + 60.0 * glow) as u8,
+                        (180.0 + 40.0 * glow) as u8,
+                    );
 
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new("Current Phase:").strong());
-                        ui.label(RichText::new(phase_text).color(phase_color).strong());
+                        ui.label(
+                            RichText::new("🪄")
+                                .size(self.scaled_font_size(28.0))
+                                .color(icon_color),
+                        );
+
+                        ui.vertical(|ui| {
+                            let phase_text = match state.current_phase {
+                                bot::FishingPhase::Idle => "Idle at the shoreline",
+                                bot::FishingPhase::Casting => "Casting enchanted line",
+                                bot::FishingPhase::WaitingForBite => "Waiting for a mystic bite",
+                                bot::FishingPhase::Reeling => "Reeling shimmering catch",
+                                bot::FishingPhase::Caught => "Catch secured!",
+                                bot::FishingPhase::Feeding => "Feeding the familiar",
+                                bot::FishingPhase::Error => "Disrupted by curses",
+                            };
+
+                            ui.label(
+                                RichText::new(phase_text)
+                                    .strong()
+                                    .size(self.scaled_font_size(17.0))
+                                    .color(self.gold_glow()),
+                            );
+                            ui.label(
+                                RichText::new(&state.status)
+                                    .color(self.arcane_blue())
+                                    .size(self.scaled_font_size(13.0)),
+                            );
+                        });
                     });
+
+                    ui.add_space(10.0 * self.scale_factor);
+
+                    let progress = self.phase_progress(&state.current_phase);
+                    let bar = egui::ProgressBar::new(progress)
+                        .desired_width(ui.available_width())
+                        .fill(Color32::from_rgb(60, 40, 90))
+                        .animate(true)
+                        .text("Runic flow");
+                    ui.add(bar);
                 });
         }
 
         fn render_statistics_panel(&mut self, ui: &mut Ui) {
-            Frame::none()
-                .fill(Color32::from_rgb(25, 25, 35))
-                .inner_margin(16.0 * self.scale_factor)
-                .rounding(8.0)
-                .show(ui, |ui| {
-                    ui.heading(
-                        RichText::new("📊 Session & Lifetime Statistics")
-                            .size(self.scaled_font_size(16.0)),
+            self.aura_frame(self.panel_fill()).show(ui, |ui| {
+                let state = self.bot.get_state();
+                let lifetime = self.bot.get_lifetime_stats();
+
+                ui.heading(
+                    RichText::new("Runic Metrics")
+                        .color(self.gold_glow())
+                        .size(self.scaled_font_size(18.0)),
+                );
+                ui.add_space(6.0 * self.scale_factor);
+
+                ui.horizontal(|ui| {
+                    self.draw_gauge(
+                        ui,
+                        state.fish_per_hour,
+                        120.0,
+                        "Fish per hour",
+                        self.arcane_blue(),
                     );
-                    ui.separator();
+                    self.draw_gauge(
+                        ui,
+                        state.uptime_percentage,
+                        100.0,
+                        "Uptime",
+                        self.gold_glow(),
+                    );
+                    self.draw_gauge(
+                        ui,
+                        lifetime.average_fish_per_hour,
+                        120.0,
+                        "Lifetime pace",
+                        self.arcane_purple(),
+                    );
+                });
 
-                    Grid::new("stats_grid")
-                        .num_columns(4)
-                        .spacing([20.0 * self.scale_factor, 8.0 * self.scale_factor])
-                        .show(ui, |ui| {
-                            let state = self.bot.get_state();
-                            let lifetime = self.bot.get_lifetime_stats();
+                ui.add_space(10.0 * self.scale_factor);
+                ui.horizontal(|ui| {
+                    self.render_digital_counter(
+                        ui,
+                        "Session Fish",
+                        &format!("{}", state.fish_count),
+                        self.arcane_blue(),
+                    );
+                    self.render_digital_counter(
+                        ui,
+                        "Best Streak",
+                        &format!("{}", state.session_best_streak),
+                        self.gold_glow(),
+                    );
+                    self.render_digital_counter(
+                        ui,
+                        "Total Fish",
+                        &format!("{}", lifetime.total_fish_caught),
+                        self.emerald(),
+                    );
+                    let runtime = if let Some(start) = state.start_time {
+                        let elapsed = start.elapsed();
+                        format!(
+                            "{:02}:{:02}:{:02}",
+                            elapsed.as_secs() / 3600,
+                            (elapsed.as_secs() % 3600) / 60,
+                            elapsed.as_secs() % 60
+                        )
+                    } else {
+                        "00:00:00".to_string()
+                    };
+                    self.render_digital_counter(ui, "Session Time", &runtime, self.arcane_purple());
+                });
+            });
+        }
 
-                            // Session Stats Row 1
-                            ui.label(RichText::new("Session Fish:").strong());
-                            ui.label(
-                                RichText::new(format!("🐟 {}", state.fish_count))
-                                    .size(16.0)
-                                    .color(Color32::from_rgb(100, 200, 255)),
-                            );
+        fn draw_gauge(&self, ui: &mut Ui, value: f32, max: f32, label: &str, color: Color32) {
+            let size = 110.0 * self.scale_factor;
+            let (rect, _) = ui.allocate_exact_size(vec2(size, size), Sense::hover());
+            let painter = ui.painter_at(rect);
 
-                            ui.label(RichText::new("Current Streak:").strong());
-                            ui.label(
-                                RichText::new(format!("🔥 {}", state.current_streak))
-                                    .size(16.0)
-                                    .color(Color32::from_rgb(255, 150, 50)),
-                            );
-                            ui.end_row();
+            let center = rect.center();
+            let radius = size * 0.45;
+            painter.circle_stroke(center, radius, Stroke::new(2.0, self.arcane_purple()));
 
-                            // Session Stats Row 2
-                            ui.label(RichText::new("Session Time:").strong());
-                            let runtime = if let Some(start) = state.start_time {
-                                let elapsed = start.elapsed();
-                                format!(
-                                    "⏱️ {:02}:{:02}:{:02}",
-                                    elapsed.as_secs() / 3600,
-                                    (elapsed.as_secs() % 3600) / 60,
-                                    elapsed.as_secs() % 60
-                                )
-                            } else {
-                                "⏱️ 00:00:00".to_string()
-                            };
-                            ui.label(
-                                RichText::new(runtime)
-                                    .size(16.0)
-                                    .color(Color32::from_rgb(150, 255, 150)),
-                            );
+            let ratio = (value / max).clamp(0.0, 1.0);
+            let start = -PI * 0.75;
+            let sweep = PI * 1.5 * ratio;
+            let steps = 32;
+            let mut points = Vec::with_capacity(steps + 1);
+            for i in 0..=steps {
+                let t = start + sweep * (i as f32 / steps as f32);
+                points.push(center + vec2(t.cos() * radius, t.sin() * radius));
+            }
+            painter.add(epaint::PathShape {
+                points,
+                closed: false,
+                fill: Color32::TRANSPARENT,
+                stroke: Stroke::new(4.0, color),
+            });
 
-                            ui.label(RichText::new("Fish/Hour:").strong());
-                            ui.label(
-                                RichText::new(format!("📈 {:.1}", state.fish_per_hour))
-                                    .size(16.0)
-                                    .color(Color32::from_rgb(255, 200, 100)),
-                            );
-                            ui.end_row();
+            let needle_angle = start + sweep;
+            let needle = center
+                + vec2(
+                    needle_angle.cos() * radius * 0.9,
+                    needle_angle.sin() * radius * 0.9,
+                );
+            painter.line_segment(
+                [center, needle],
+                Stroke::new(3.0, Color32::from_rgb(255, 240, 200)),
+            );
 
-                            // Separator
-                            ui.separator();
-                            ui.separator();
-                            ui.separator();
-                            ui.separator();
-                            ui.end_row();
+            painter.circle_filled(center, 6.0, self.gold_glow());
 
-                            // Lifetime Stats Row 1
-                            ui.label(RichText::new("Total Fish Ever:").strong());
-                            ui.label(
-                                RichText::new(format!("🏆 {}", lifetime.total_fish_caught))
-                                    .size(16.0)
-                                    .color(Color32::from_rgb(255, 215, 0)),
-                            );
+            let text = format!("{:.0}", value);
+            painter.text(
+                center,
+                Align2::CENTER_CENTER,
+                text,
+                FontId::proportional(self.scaled_font_size(14.0)),
+                Color32::from_rgb(230, 235, 255),
+            );
 
-                            ui.label(RichText::new("Best Session:").strong());
-                            ui.label(
-                                RichText::new(format!("🎯 {}", lifetime.best_session_fish))
-                                    .size(16.0)
-                                    .color(Color32::from_rgb(255, 100, 255)),
-                            );
-                            ui.end_row();
+            let label_pos = egui::pos2(center.x, rect.bottom() + 4.0 * self.scale_factor);
+            painter.text(
+                label_pos,
+                Align2::CENTER_TOP,
+                label,
+                FontId::proportional(self.scaled_font_size(12.0)),
+                Color32::from_rgb(200, 200, 220),
+            );
+        }
 
-                            // Lifetime Stats Row 2
-                            ui.label(RichText::new("Total Runtime:").strong());
-                            ui.label(
-                                RichText::new(format!("📅 {}", lifetime.get_formatted_runtime()))
-                                    .size(16.0)
-                                    .color(Color32::from_rgb(100, 255, 255)),
-                            );
-
-                            ui.label(RichText::new("Total Sessions:").strong());
-                            ui.label(
-                                RichText::new(format!("🔄 {}", lifetime.sessions_completed))
-                                    .size(16.0)
-                                    .color(Color32::from_rgb(200, 200, 255)),
-                            );
-                            ui.end_row();
-                        });
+        fn render_digital_counter(&self, ui: &mut Ui, label: &str, value: &str, color: Color32) {
+            Frame::none()
+                .fill(Color32::from_rgba_unmultiplied(25, 20, 40, 180))
+                .stroke(self.rune_border())
+                .rounding(6.0)
+                .inner_margin(8.0 * self.scale_factor)
+                .show(ui, |ui| {
+                    ui.vertical(|ui| {
+                        ui.label(
+                            RichText::new(label)
+                                .size(self.scaled_font_size(12.0))
+                                .color(self.gold_glow()),
+                        );
+                        ui.label(
+                            RichText::new(value)
+                                .size(self.scaled_font_size(18.0))
+                                .color(color)
+                                .monospace()
+                                .strong(),
+                        );
+                    });
                 });
         }
 
         fn render_performance_panel(&mut self, ui: &mut Ui) {
-            Frame::none()
-                .fill(Color32::from_rgb(25, 25, 35))
-                .inner_margin(16.0)
-                .rounding(8.0)
-                .show(ui, |ui| {
-                    ui.heading("⚡ Performance Monitor");
-                    ui.separator();
+            self.aura_frame(self.panel_fill()).show(ui, |ui| {
+                ui.heading(
+                    RichText::new("⚡ Arcane Performance")
+                        .color(self.arcane_blue())
+                        .size(self.scaled_font_size(16.0)),
+                );
+                ui.separator();
 
-                    let (success_rate, avg_time, error_count) = self.bot.get_performance_stats();
-                    let state = self.bot.get_state();
+                let (success_rate, avg_time, error_count) = self.bot.get_performance_stats();
+                let state = self.bot.get_state();
 
-                    Grid::new("perf_grid")
-                        .num_columns(4)
-                        .spacing([20.0, 8.0])
-                        .show(ui, |ui| {
-                            ui.label(RichText::new("Success Rate:").strong());
-                            let success_color = if success_rate > 95.0 {
-                                Color32::from_rgb(100, 255, 100)
-                            } else if success_rate > 85.0 {
-                                Color32::from_rgb(255, 200, 100)
-                            } else {
-                                Color32::from_rgb(255, 100, 100)
-                            };
-                            ui.label(
-                                RichText::new(format!("✅ {:.1}%", success_rate))
-                                    .color(success_color),
-                            );
+                Grid::new("perf_grid")
+                    .num_columns(4)
+                    .spacing([20.0, 8.0])
+                    .show(ui, |ui| {
+                        ui.label(RichText::new("Success Rate:").strong());
+                        let success_color = if success_rate > 95.0 {
+                            self.emerald()
+                        } else if success_rate > 85.0 {
+                            self.gold_glow()
+                        } else {
+                            self.ember_red()
+                        };
+                        ui.label(
+                            RichText::new(format!("✅ {:.1}%", success_rate)).color(success_color),
+                        );
 
-                            ui.label(RichText::new("Uptime:").strong());
-                            let uptime_color = if state.uptime_percentage > 95.0 {
-                                Color32::from_rgb(100, 255, 100)
-                            } else {
-                                Color32::from_rgb(255, 200, 100)
-                            };
-                            ui.label(
-                                RichText::new(format!("📈 {:.1}%", state.uptime_percentage))
-                                    .color(uptime_color),
-                            );
-                            ui.end_row();
+                        ui.label(RichText::new("Uptime:").strong());
+                        let uptime_color = if state.uptime_percentage > 95.0 {
+                            self.emerald()
+                        } else {
+                            self.gold_glow()
+                        };
+                        ui.label(
+                            RichText::new(format!("📈 {:.1}%", state.uptime_percentage))
+                                .color(uptime_color),
+                        );
+                        ui.end_row();
 
-                            ui.label(RichText::new("Avg Operation:").strong());
-                            ui.label(
-                                RichText::new(format!("⏱️ {:.1}ms", avg_time.as_millis()))
-                                    .color(Color32::from_rgb(150, 200, 255)),
-                            );
+                        ui.label(RichText::new("Avg Operation:").strong());
+                        ui.label(
+                            RichText::new(format!("⏱️ {:.1}ms", avg_time.as_millis()))
+                                .color(self.arcane_blue()),
+                        );
 
-                            ui.label(RichText::new("Total Errors:").strong());
-                            let error_color = if error_count == 0 {
-                                Color32::from_rgb(100, 255, 100)
-                            } else if error_count < 5 {
-                                Color32::from_rgb(255, 200, 100)
-                            } else {
-                                Color32::from_rgb(255, 100, 100)
-                            };
-                            ui.label(
-                                RichText::new(format!("❌ {}", error_count)).color(error_color),
-                            );
-                            ui.end_row();
-                        });
-                });
+                        ui.label(RichText::new("Total Errors:").strong());
+                        let error_color = if error_count == 0 {
+                            self.emerald()
+                        } else if error_count < 5 {
+                            self.gold_glow()
+                        } else {
+                            self.ember_red()
+                        };
+                        ui.label(RichText::new(format!("❌ {}", error_count)).color(error_color));
+                        ui.end_row();
+                    });
+            });
         }
 
         fn render_activity_monitor(&mut self, ui: &mut Ui) {
             Frame::none()
-                .fill(Color32::from_rgb(25, 25, 35))
-                .inner_margin(16.0)
-                .rounding(8.0)
+                .fill(Color32::from_rgba_unmultiplied(38, 32, 24, 220))
+                .stroke(self.rune_border())
+                .rounding(10.0)
+                .inner_margin(14.0 * self.scale_factor)
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        ui.heading("📋 Activity Monitor");
+                        ui.heading(
+                            RichText::new("📜 Activity Log")
+                                .color(self.gold_glow())
+                                .size(self.scaled_font_size(16.0)),
+                        );
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                            if ui.button("🗑️ Clear").clicked() {
+                            if ui
+                                .button(
+                                    RichText::new("🧹")
+                                        .color(self.gold_glow())
+                                        .size(self.scaled_font_size(14.0)),
+                                )
+                                .clicked()
+                            {
                                 self.status_messages.clear();
                             }
                         });
@@ -2299,16 +2427,16 @@ mod ui {
                     ui.separator();
 
                     ScrollArea::vertical()
-                        .max_height(150.0)
+                        .max_height(180.0 * self.scale_factor)
                         .auto_shrink([false; 2])
                         .show(ui, |ui| {
-                            for (_timestamp, message) in self.status_messages.iter().rev().take(20)
+                            for (_timestamp, message) in self.status_messages.iter().rev().take(25)
                             {
-                                ui.horizontal(|ui| {
-                                    ui.label(
-                                        RichText::new(message).family(FontFamily::Proportional),
-                                    );
-                                });
+                                ui.label(
+                                    RichText::new(message)
+                                        .family(FontFamily::Proportional)
+                                        .color(Color32::from_rgb(240, 225, 190)),
+                                );
                             }
                         });
                 });
