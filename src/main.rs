@@ -478,6 +478,7 @@ mod input {
     use winapi::shared::windef::POINT;
 
     pub struct RobloxInputController {
+        #[cfg(not(windows))]
         enigo: Enigo,
         failsafe_enabled: bool,
         last_action_time: Instant,
@@ -486,6 +487,7 @@ mod input {
     impl RobloxInputController {
         pub fn new(failsafe_enabled: bool) -> Self {
             Self {
+                #[cfg(not(windows))]
                 enigo: Enigo::new(&Settings::default()).expect("Failed to create Enigo instance"),
                 failsafe_enabled,
                 last_action_time: Instant::now(),
@@ -645,9 +647,6 @@ mod input {
             self.last_action_time
         }
     }
-
-    // Type alias for compatibility
-    pub type SafeInputController = RobloxInputController;
 }
 
 // ===== WEBHOOK MODULE =====
@@ -887,21 +886,10 @@ mod ocr {
         }
 
         fn perform_ocr(&self, image: &RgbaImage) -> Result<Option<u32>> {
-            // Simple preprocessing - just convert to grayscale and threshold
-            let gray = GrayImage::from_fn(image.width(), image.height(), |x, y| {
-                let pixel = image.get_pixel(x, y);
-                let gray_value = ((pixel[0] as u32 + pixel[1] as u32 + pixel[2] as u32) / 3) as u8;
-                Luma([gray_value])
-            });
-
-            let binary = GrayImage::from_fn(gray.width(), gray.height(), |x, y| {
-                let pixel = gray.get_pixel(x, y);
-                if pixel[0] > 128 {
-                    Luma([255])
-                } else {
-                    Luma([0])
-                }
-            });
+            // Enhanced preprocessing pipeline for more reliable recognition
+            let gray = self.to_grayscale_enhanced(image);
+            let denoised = self.noise_reduction(&gray);
+            let binary = self.apply_adaptive_threshold(&denoised);
 
             // Save to temporary file for rusty-tesseract
             let temp_path = std::env::temp_dir().join(format!(
@@ -1312,6 +1300,13 @@ mod bot {
             )
         }
 
+        pub fn get_last_action_elapsed(&self) -> Option<Duration> {
+            self.input
+                .lock()
+                .ok()
+                .map(|controller| controller.get_last_action_time().elapsed())
+        }
+
         fn run_loop(&self) {
             self.update_status("🔧 Initializing bot systems...");
             self.update_phase(FishingPhase::Idle);
@@ -1692,7 +1687,7 @@ mod ui {
             )
         }
 
-        fn night_sky(&self) -> Color32 {
+        fn night_sky() -> Color32 {
             Color32::from_rgb(10, 12, 26)
         }
 
@@ -1866,7 +1861,7 @@ mod ui {
 
             style.visuals = Visuals::dark();
             style.visuals.override_text_color = Some(Color32::from_rgb(215, 225, 255));
-            style.visuals.window_fill = Color32::from_rgb(8, 10, 22);
+            style.visuals.window_fill = Self::night_sky();
             style.visuals.panel_fill = Color32::from_rgb(16, 18, 34);
             style.visuals.widgets.inactive.bg_fill = Color32::from_rgb(28, 32, 54);
             style.visuals.widgets.hovered.bg_fill = Color32::from_rgb(60, 80, 130);
@@ -2600,13 +2595,8 @@ mod ui {
                                         });
 
                                     if ui.button("Apply").clicked() {
-                                        if let Some((_, red, yellow, hunger)) =
-                                            self.resolution_presets.get(&self.config.region_preset)
-                                        {
-                                            self.config.red_region = *red;
-                                            self.config.yellow_region = *yellow;
-                                            self.config.hunger_region = *hunger;
-                                        }
+                                        let selected_preset = self.config.region_preset.clone();
+                                        self.config.apply_resolution_preset(&selected_preset);
                                     }
                                 });
 
@@ -2672,6 +2662,12 @@ mod ui {
                 .show(ctx, |ui| {
                     let lifetime = self.bot.get_lifetime_stats();
                     let state = self.bot.get_state();
+                    let runtime = lifetime.get_formatted_runtime();
+                    let last_action = self
+                        .bot
+                        .get_last_action_elapsed()
+                        .map(|elapsed| format!("{:.1}s ago", elapsed.as_secs_f32()))
+                        .unwrap_or_else(|| "Unavailable".to_string());
 
                     ui.heading("📈 Detailed Analytics");
                     ui.separator();
@@ -2698,6 +2694,14 @@ mod ui {
 
                             ui.label(RichText::new("System Uptime:").strong());
                             ui.label(format!("{:.1}%", state.uptime_percentage));
+                            ui.end_row();
+
+                            ui.label(RichText::new("Last Input Action:").strong());
+                            ui.label(last_action);
+                            ui.end_row();
+
+                            ui.label(RichText::new("Lifetime Runtime:").strong());
+                            ui.label(runtime);
                             ui.end_row();
 
                             ui.label(RichText::new("Error Count:").strong());
