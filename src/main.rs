@@ -307,9 +307,9 @@ mod detection {
         };
 
         pub fn distance(&self, other: &[u8]) -> u32 {
-            let dr = (self.r as i32 - other[0] as i32).abs() as u32;
-            let dg = (self.g as i32 - other[1] as i32).abs() as u32;
-            let db = (self.b as i32 - other[2] as i32).abs() as u32;
+            let dr = (self.r as i32 - other[0] as i32).unsigned_abs();
+            let dg = (self.g as i32 - other[1] as i32).unsigned_abs();
+            let db = (self.b as i32 - other[2] as i32).unsigned_abs();
             dr + dg + db
         }
 
@@ -453,8 +453,8 @@ mod detection {
             let image = screen.capture()?;
 
             RgbaImage::from_raw(
-                screen.display_info.width as u32,
-                screen.display_info.height as u32,
+                screen.display_info.width,
+                screen.display_info.height,
                 image.to_vec(),
             )
             .ok_or_else(|| anyhow!("Failed to create full screenshot"))
@@ -772,12 +772,13 @@ mod webhook {
             while running.load(std::sync::atomic::Ordering::Relaxed) {
                 let webhook_url = {
                     let cfg = config.read();
-                    if cfg.webhook_url.is_empty() {
-                        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-                        continue;
-                    }
                     cfg.webhook_url.clone()
                 };
+
+                if webhook_url.is_empty() {
+                    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                    continue;
+                }
 
                 let messages = {
                     let mut q = queue.lock().unwrap();
@@ -950,8 +951,8 @@ mod ocr {
             let total_pixels = image.width() * image.height();
             let mut sum = 0u64;
 
-            for i in 0..256 {
-                sum += i as u64 * histogram[i] as u64;
+            for (i, &count) in histogram.iter().enumerate() {
+                sum += i as u64 * count as u64;
             }
 
             let mut sum_background = 0u64;
@@ -959,8 +960,8 @@ mod ocr {
             let mut max_variance = 0.0;
             let mut best_threshold = 0u8;
 
-            for threshold in 0..256 {
-                weight_background += histogram[threshold];
+            for (threshold, &count) in histogram.iter().enumerate() {
+                weight_background += count;
                 if weight_background == 0 {
                     continue;
                 }
@@ -970,7 +971,7 @@ mod ocr {
                     break;
                 }
 
-                sum_background += threshold as u64 * histogram[threshold] as u64;
+                sum_background += threshold as u64 * count as u64;
 
                 let mean_background = sum_background as f64 / weight_background as f64;
                 let mean_foreground = (sum - sum_background) as f64 / weight_foreground as f64;
@@ -1677,7 +1678,7 @@ mod ui {
         }
 
         fn scaled_font_size(&self, base_size: f32) -> f32 {
-            (base_size * self.scale_factor).max(8.0).min(32.0)
+            (base_size * self.scale_factor).clamp(8.0, 32.0)
         }
 
         fn scaled_button_size(&self, base_width: f32, base_height: f32) -> egui::Vec2 {
@@ -1967,8 +1968,7 @@ mod ui {
                 self.window_size = current_size;
                 self.scale_factor = (current_size.x / 900.0)
                     .min(current_size.y / 800.0)
-                    .max(0.5)
-                    .min(2.0);
+                    .clamp(0.5, 2.0);
             }
 
             // Window properties
