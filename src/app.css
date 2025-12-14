@@ -1,0 +1,21 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Inter:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-obsidian text-mist font-body min-h-screen;
+}
+
+.glow-card {
+  @apply bg-gradient-to-br from-obsidian via-[#0f1324] to-[#0b0d16] border border-[#1f2233] shadow-[0_0_30px_rgba(124,58,237,0.15)] rounded-2xl p-6 backdrop-blur;
+}
+
+.rune-accent {
+  @apply text-rune drop-shadow-[0_0_10px_rgba(124,58,237,0.35)];
+}

@@ -1,0 +1,25 @@
+{
+  "package": {
+    "productName": "Arcane Fishing Bot",
+    "version": "0.1.0"
+  },
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "dist",
+    "devPath": "http://localhost:5173"
+  },
+  "tauri": {
+    "windows": [
+      {
+        "title": "Arcane Fishing Bot",
+        "width": 1100,
+        "height": 800,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  }
+}
