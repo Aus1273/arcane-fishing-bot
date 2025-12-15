@@ -52,6 +52,7 @@
     loadState();
   });
 </script>
+<!-- Glassmorphic Electron control surface retained from codex/switch-ui-to-electron -->
 <main class="min-h-screen bg-gradient-to-br from-[#05060c] via-[#0c0f1d] to-[#0f1325] text-mist">
   <div class="max-w-7xl mx-auto px-6 py-10 space-y-10">
     <header class="rounded-2xl border border-white/5 bg-white/5 shadow-2xl shadow-emerald-900/10 overflow-hidden relative">
