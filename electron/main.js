@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
+import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -9,6 +10,7 @@ const __dirname = path.dirname(__filename);
 
 const statePath = path.join(app.getPath('userData'), 'bot-state.json');
 let cachedState = null;
+let botProcess = null;
 
 const defaultState = () => ({
   config: {
@@ -86,10 +88,47 @@ async function getState() {
 
 async function startSession() {
   await loadState();
+  if (cachedState.session.running) return cachedState;
+
+  const binaryName = process.platform === 'win32' ? 'arcane-fishing-bot.exe' : 'arcane-fishing-bot';
+  const releasePath = path.join(__dirname, '..', 'target', 'release', binaryName);
+  const debugPath = path.join(__dirname, '..', 'target', 'debug', binaryName);
+  const binaryPath = existsSync(releasePath) ? releasePath : debugPath;
+
+  if (!existsSync(binaryPath)) {
+    cachedState.session.last_action = 'Rust backend binary not found';
+    cachedState.session.running = false;
+    await saveState();
+    return cachedState;
+  }
+
+  botProcess = spawn(binaryPath, [], {
+    stdio: 'inherit',
+    env: { ...process.env, ELECTRON_RUN: '1' },
+  });
+
+  botProcess.on('error', (error) => {
+    cachedState.session.running = false;
+    cachedState.session.last_action = `Backend failed: ${error.message}`;
+    cachedState.session.started_at = null;
+    saveState();
+    botProcess = null;
+  });
+
+  botProcess.on('exit', () => {
+    cachedState.session.running = false;
+    cachedState.session.last_action = 'Backend exited';
+    cachedState.session.started_at = null;
+    cachedState.session.uptime_minutes = 0;
+    saveState();
+    botProcess = null;
+  });
+
   cachedState.session.running = true;
   cachedState.session.started_at = Date.now();
   cachedState.session.last_action = 'Session started';
   await saveState();
+  return cachedState;
 }
 
 async function stopSession() {
@@ -101,6 +140,11 @@ async function stopSession() {
   cachedState.stats.sessions_completed += 1;
   cachedState.stats.last_updated = new Date().toISOString();
   await saveState();
+
+  if (botProcess && !botProcess.killed) {
+    botProcess.kill();
+    botProcess = null;
+  }
 }
 
 async function saveConfig(config) {
