@@ -27,7 +27,7 @@
     config = state.config;
     stats = state.stats;
     session = state.session;
-    status = session?.running ? 'Fishing ritual active' : 'Awaiting command';
+    status = statusText;
   }
 
   async function start() {
@@ -213,28 +213,12 @@
       </div>
 
       {#if config}
-        <div class="grid md:grid-cols-2 gap-5">
-          <div class="space-y-3">
-            <div>
-              <label class="text-sm text-slate-300" for="colorTolerance">Color Tolerance</label>
-              <input
-                id="colorTolerance"
-                type="range"
-                min="0"
-                max="30"
-                bind:value={config.color_tolerance}
-                class="w-full accent-rune"
-              />
-              <p class="text-xs text-slate-400">{config.color_tolerance}% aura variance</p>
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="text-sm text-slate-300" for="autoClick">Auto-click (ms)</label>
-                <input id="autoClick" type="number" bind:value={config.autoclick_interval_ms} class="input" />
-              </div>
-              <div>
-                <label class="text-sm text-slate-300" for="detection">Detection (ms)</label>
-                <input id="detection" type="number" bind:value={config.detection_interval_ms} class="input" />
+        <div class="grid lg:grid-cols-3 gap-5">
+          <div class="lg:col-span-2 space-y-4">
+            <div class="rounded-xl border border-white/5 bg-white/5 p-4 space-y-2">
+              <div class="flex items-center justify-between text-sm">
+                <label class="text-slate-200" for="colorTolerance">Color tolerance</label>
+                <span class="px-3 py-1 rounded-full bg-rune/10 text-rune text-xs font-semibold">{config.color_tolerance}%</span>
               </div>
               <input
                 id="colorTolerance"
@@ -245,32 +229,11 @@
                 class="w-full accent-rune"
               />
             </div>
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="text-sm text-slate-300" for="fishPerFeed">Fish per feed</label>
-                <input id="fishPerFeed" type="number" bind:value={config.fish_per_feed} class="input" />
-              </div>
-              <div>
-                <label class="text-sm text-slate-300" for="startupDelay">Startup delay (ms)</label>
-                <input id="startupDelay" type="number" bind:value={config.startup_delay_ms} class="input" />
-              </div>
-            </div>
-          </div>
 
-          <div class="space-y-3">
-            <div>
-              <label class="text-sm text-slate-300" for="webhook">Webhook URL</label>
-              <input
-                id="webhook"
-                type="url"
-                bind:value={config.webhook_url}
-                placeholder="https://discord..."
-                class="input"
-              />
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-              <label class="flex items-center gap-2 text-sm text-slate-200">
-                <input type="checkbox" bind:checked={config.screenshot_enabled} /> Enable rune captures
+            <div class="grid md:grid-cols-2 gap-3">
+              <label class="block space-y-2" for="autoClick">
+                <span class="text-sm text-slate-200">Auto-click (ms)</span>
+                <input id="autoClick" type="number" bind:value={config.autoclick_interval_ms} class="input" />
               </label>
               <label class="block space-y-2" for="detection">
                 <span class="text-sm text-slate-200">Detection (ms)</span>
