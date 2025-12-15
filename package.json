@@ -3,21 +3,22 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "electron": "npm run build && electron .",
+    "compile": "node scripts/compile.js"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^3.0.0",
     "autoprefixer": "^10.4.19",
+    "electron": "^29.4.5",
     "postcss": "^8.4.38",
     "svelte": "^4.2.0",
     "tailwindcss": "^3.4.3",
     "typescript": "^5.3.3",
     "vite": "^5.1.0"
-  },
-  "dependencies": {
-    "@tauri-apps/api": "^1.6.0"
   }
 }
