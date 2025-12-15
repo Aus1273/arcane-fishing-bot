@@ -1,48 +1,14 @@
 <script lang="ts">
-  import { invoke } from '@tauri-apps/api/tauri';
   import { onMount } from 'svelte';
-
-  type Region = { x: number; y: number; width: number; height: number };
-  type BotConfig = {
-    color_tolerance: number;
-    autoclick_interval_ms: number;
-    fish_per_feed: number;
-    webhook_url: string;
-    screenshot_interval_mins: number;
-    screenshot_enabled: boolean;
-    red_region: Region;
-    yellow_region: Region;
-    hunger_region: Region;
-    region_preset: string;
-    startup_delay_ms: number;
-    detection_interval_ms: number;
-    max_fishing_timeout_ms: number;
-    rod_lure_value: number;
-    always_on_top: boolean;
-    auto_save_enabled: boolean;
-    failsafe_enabled: boolean;
-    advanced_detection: boolean;
-  };
-
-  type LifetimeStats = {
-    total_fish_caught: number;
-    total_runtime_seconds: number;
-    sessions_completed: number;
-    last_updated: string;
-    best_session_fish: number;
-    average_fish_per_hour: number;
-    total_feeds: number;
-    uptime_percentage: number;
-  };
-
-  type SessionState = {
-    running: boolean;
-    last_action: string;
-    fish_caught: number;
-    hunger_level: number;
-    errors_count: number;
-    uptime_minutes: number;
-  };
+  import {
+    getState,
+    saveConfig as persistConfig,
+    startSession as startBot,
+    stopSession as stopBot,
+    type BotConfig,
+    type LifetimeStats,
+    type SessionState,
+  } from './lib/ipc';
 
   let config: BotConfig | null = null;
   let stats: LifetimeStats | null = null;
@@ -50,28 +16,28 @@
   let status = 'Summoning arcane waters...';
 
   async function loadState() {
-    config = await invoke<BotConfig>('get_config');
-    const [loadedStats, sessionState] = await invoke<[LifetimeStats, SessionState]>('get_stats');
-    stats = loadedStats;
-    session = sessionState;
+    const state = await getState();
+    config = state.config;
+    stats = state.stats;
+    session = state.session;
     status = session?.running ? 'Fishing ritual active' : 'Awaiting command';
   }
 
   async function start() {
-    await invoke('start_session');
+    await startBot();
     status = 'Fishing ritual active';
     await loadState();
   }
 
   async function stop() {
-    await invoke('stop_session');
+    await stopBot();
     status = 'Ritual paused';
     await loadState();
   }
 
   async function saveConfig() {
     if (!config) return;
-    await invoke('save_config', { config });
+    await persistConfig(config);
     status = 'Runes etched into memory';
   }
 
@@ -162,36 +128,49 @@
         <div class="grid md:grid-cols-2 gap-5">
           <div class="space-y-3">
             <div>
-              <label class="text-sm text-slate-300">Color Tolerance</label>
-              <input type="range" min="0" max="30" bind:value={config.color_tolerance} class="w-full accent-rune" />
+              <label class="text-sm text-slate-300" for="colorTolerance">Color Tolerance</label>
+              <input
+                id="colorTolerance"
+                type="range"
+                min="0"
+                max="30"
+                bind:value={config.color_tolerance}
+                class="w-full accent-rune"
+              />
               <p class="text-xs text-slate-400">{config.color_tolerance}% aura variance</p>
             </div>
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="text-sm text-slate-300">Auto-click (ms)</label>
-                <input type="number" bind:value={config.autoclick_interval_ms} class="input" />
+                <label class="text-sm text-slate-300" for="autoClick">Auto-click (ms)</label>
+                <input id="autoClick" type="number" bind:value={config.autoclick_interval_ms} class="input" />
               </div>
               <div>
-                <label class="text-sm text-slate-300">Detection (ms)</label>
-                <input type="number" bind:value={config.detection_interval_ms} class="input" />
+                <label class="text-sm text-slate-300" for="detection">Detection (ms)</label>
+                <input id="detection" type="number" bind:value={config.detection_interval_ms} class="input" />
               </div>
             </div>
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="text-sm text-slate-300">Fish per feed</label>
-                <input type="number" bind:value={config.fish_per_feed} class="input" />
+                <label class="text-sm text-slate-300" for="fishPerFeed">Fish per feed</label>
+                <input id="fishPerFeed" type="number" bind:value={config.fish_per_feed} class="input" />
               </div>
               <div>
-                <label class="text-sm text-slate-300">Startup delay (ms)</label>
-                <input type="number" bind:value={config.startup_delay_ms} class="input" />
+                <label class="text-sm text-slate-300" for="startupDelay">Startup delay (ms)</label>
+                <input id="startupDelay" type="number" bind:value={config.startup_delay_ms} class="input" />
               </div>
             </div>
           </div>
 
           <div class="space-y-3">
             <div>
-              <label class="text-sm text-slate-300">Webhook URL</label>
-              <input type="url" bind:value={config.webhook_url} placeholder="https://discord..." class="input" />
+              <label class="text-sm text-slate-300" for="webhook">Webhook URL</label>
+              <input
+                id="webhook"
+                type="url"
+                bind:value={config.webhook_url}
+                placeholder="https://discord..."
+                class="input"
+              />
             </div>
             <div class="grid grid-cols-2 gap-3">
               <label class="flex items-center gap-2 text-sm text-slate-200">

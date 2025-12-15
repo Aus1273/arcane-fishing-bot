@@ -1,10 +1,10 @@
 # Arcane Fishing Bot
 
 Arcane Fishing Bot is a Rust-powered automation tool for the Roblox game **Arcane Odyssey**.
-It uses screen capture, OCR (Tesseract), and simulated input to automatically fish in-game with a Tauri/Svelte desktop shell.
+It uses screen capture, OCR (Tesseract), and simulated input to automatically fish in-game with an Electron + Svelte desktop shell.
 
 ## Features
-- Cross-platform desktop application powered by Tauri with a Svelte + Tailwind UI.
+- Cross-platform desktop application powered by Electron with a Svelte + Tailwind UI.
 - OCR-based bite detection using `rusty-tesseract`.
 - Statistics and settings GUI for tracking performance.
 - Configurable failsafe and adjustable resolution presets.
@@ -14,47 +14,69 @@ It uses screen capture, OCR (Tesseract), and simulated input to automatically fi
 2. [Tesseract OCR](https://github.com/UB-Mannheim/tesseract)
 3. Platform dependencies for window access and screen capture (e.g. X11, Accessibility permissions on macOS)
 
-## Building
-Follow these steps to produce a distributable Tauri application:
+## Building (beginner-friendly, step-by-step)
+Follow the steps below in order. Every command is meant to be run from a terminal/command prompt.
 
-1. **Install prerequisites**
-   - Rust toolchain with `cargo` and `rustup`
-   - Node.js 18+ with `npm`
-   - Tesseract OCR binaries
-   - Tauri system libraries
-     - **Linux (Debian/Ubuntu):** `sudo apt update && sudo apt install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev pkg-config libssl-dev`
-     - **macOS:** see [BUILDING_MACOS.md](BUILDING_MACOS.md) for a walkthrough and signing notes
-     - **Windows:** install the WebView2 runtime (via Edge) and build tools noted in the [Tauri prerequisites](https://tauri.app/v1/guides/getting-started/prerequisites)
-2. **Clone the repository**
+1. **Install the required tools**
+   - **Rust toolchain**: Install from [rustup.rs](https://rustup.rs/) (adds `cargo` and `rustc`).
+   - **Node.js 18+**: Install from [nodejs.org](https://nodejs.org/) (choose the LTS installer if unsure; npm comes with Node).
+   - **Tesseract OCR**: Install the Tesseract binaries for your OS (e.g., `sudo apt install tesseract-ocr` on Ubuntu or the Windows installer from UB Mannheim).
+2. **Verify the tools are on your PATH**
+   ```bash
+   cargo --version
+   node --version
+   npm --version
+   tesseract --version
+   ```
+   Each command should print a version number. If any command fails, re-run the installer or restart your terminal so PATH changes take effect.
+3. **Clone the project source code**
    ```bash
    git clone https://github.com/yourusername/arcane-fishing-bot.git
    cd arcane-fishing-bot
    ```
-3. **Install frontend dependencies**
+4. **Install JavaScript dependencies** (downloads the Electron/Svelte packages)
    ```bash
    npm install
    ```
-4. **Build the Svelte UI** (outputs to `dist/`)
+   The first run can take a few minutes while npm downloads packages into `node_modules/`.
+5. **Build the Svelte UI** (emits a production-ready `dist/` folder)
    ```bash
    npm run build
    ```
-5. **Build the Tauri shell and Rust backend**
+   This step verifies the front-end compiles successfully.
+6. **Compile the Rust core in release mode**
    ```bash
-   cd src-tauri
-   cargo tauri build
+   cargo build --release
    ```
+   The optimized binary is written to `target/release/arcane-fishing-bot`.
+7. **Start the Electron shell with the freshly built UI**
+   ```bash
+   npm run electron
+   ```
+   The desktop window should open using the contents of `dist/`.
 
-The bundled application will be created in `src-tauri/target/release/`. During development, you can use `npm run dev` and `cargo tauri dev` in separate terminals to hot-reload the UI.
+During development you can also run the Vite dev server with `npm run dev` to iterate on the UI in the browser, then restart the Electron shell to pick up changes.
 
-## Running
-During development, run the Vite dev server and Tauri shell in separate terminals:
+## Automatic compile helper
+If you prefer a single command that runs all build steps in sequence, use the provided helper:
 
 ```bash
-$ npm run dev
-$ cd src-tauri && cargo tauri dev
+npm run compile
 ```
 
-For production builds, run the bundle produced by `cargo tauri build`.
+This script will:
+- Install/update npm packages
+- Build the Svelte UI
+- Compile the Rust project in release mode
+
+After it completes, run `npm run electron` to launch the desktop app with the compiled assets.
+
+## Running
+To start the Electron shell with the latest UI build:
+
+```bash
+$ npm run electron
+```
 
 ## Disclaimer
 Use responsibly and at your own risk. This project is provided for educational purposes and is not affiliated with
