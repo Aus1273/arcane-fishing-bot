@@ -1,3 +1,5 @@
+import { invoke } from '@tauri-apps/api/tauri';
+
 export type Region = { x: number; y: number; width: number; height: number };
 
 export type BotConfig = {
@@ -48,14 +50,11 @@ export type BotState = {
   session: SessionState;
 };
 
-export type BotApi = {
-  getState: () => Promise<BotState>;
-  getConfig: () => Promise<BotConfig>;
-  getStats: () => Promise<{ stats: LifetimeStats; session: SessionState }>;
-  saveConfig: (config: BotConfig) => Promise<void>;
-  startSession: () => Promise<void>;
-  stopSession: () => Promise<void>;
-};
+declare global {
+  interface Window {
+    __TAURI_IPC__?: unknown;
+  }
+}
 
 function fallbackState(): BotState {
   return {
@@ -101,9 +100,19 @@ function fallbackState(): BotState {
   };
 }
 
-function getApi(): BotApi | undefined {
-  if (typeof window === 'undefined') return undefined;
-  return window.bot;
+const isTauri = typeof window !== 'undefined' && Boolean(window.__TAURI_IPC__);
+
+type InvokeResult<T> = { called: false } | { called: true; result: T };
+
+async function invokeCommand<T>(command: string, args?: Record<string, unknown>): Promise<InvokeResult<T>> {
+  if (!isTauri) return { called: false };
+  try {
+    const result = await invoke<T>(command, args);
+    return { called: true, result };
+  } catch (error) {
+    console.error(`Failed to invoke ${command}`, error);
+    return { called: false };
+  }
 }
 
 let inMemoryState: BotState | null = null;
@@ -116,27 +125,47 @@ function ensureFallbackState(): BotState {
 }
 
 export async function getState(): Promise<BotState> {
-  const api = getApi();
-  if (api?.getState) return api.getState();
+  const [config, statsAndSession] = await Promise.all([
+    invokeCommand<BotConfig>('get_config'),
+    invokeCommand<[LifetimeStats, SessionState]>('get_stats'),
+  ]);
+
+  if (config.called && statsAndSession.called) {
+    const [stats, session] = statsAndSession.result;
+    inMemoryState = { config: config.result, stats, session };
+    return inMemoryState;
+  }
+
   return ensureFallbackState();
 }
 
 export async function getConfig(): Promise<BotConfig> {
-  const api = getApi();
-  if (api?.getConfig) return api.getConfig();
+  const config = await invokeCommand<BotConfig>('get_config');
+  if (config.called) {
+    ensureFallbackState().config = config.result;
+    return config.result;
+  }
+
   return ensureFallbackState().config;
 }
 
 export async function getStats(): Promise<{ stats: LifetimeStats; session: SessionState }> {
-  const api = getApi();
-  if (api?.getStats) return api.getStats();
+  const statsAndSession = await invokeCommand<[LifetimeStats, SessionState]>('get_stats');
+  if (statsAndSession.called) {
+    const [stats, session] = statsAndSession.result;
+    const state = ensureFallbackState();
+    state.stats = stats;
+    state.session = session;
+    return { stats, session };
+  }
+
   const fallback = ensureFallbackState();
   return { stats: fallback.stats, session: fallback.session };
 }
 
 export async function saveConfig(config: BotConfig): Promise<void> {
-  const api = getApi();
-  if (api?.saveConfig) return api.saveConfig(config);
+  const result = await invokeCommand<void>('save_config', { config });
+  if (result.called) return;
 
   const state = ensureFallbackState();
   state.config = config;
@@ -144,8 +173,8 @@ export async function saveConfig(config: BotConfig): Promise<void> {
 }
 
 export async function startSession(): Promise<void> {
-  const api = getApi();
-  if (api?.startSession) return api.startSession();
+  const result = await invokeCommand<void>('start_session');
+  if (result.called) return;
 
   const state = ensureFallbackState();
   state.session.running = true;
@@ -154,8 +183,8 @@ export async function startSession(): Promise<void> {
 }
 
 export async function stopSession(): Promise<void> {
-  const api = getApi();
-  if (api?.stopSession) return api.stopSession();
+  const result = await invokeCommand<void>('stop_session');
+  if (result.called) return;
 
   const state = ensureFallbackState();
   state.session.running = false;
