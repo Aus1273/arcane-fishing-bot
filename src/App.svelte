@@ -30,6 +30,12 @@
     },
   };
 
+  function calculateMaxBiteTimeMs(lureValue: number) {
+    const multiplier = lureValue <= 1 ? 3 - 2 * lureValue : 1.25 - lureValue / 3;
+    const seconds = Math.min(180, Math.max(10, multiplier * 60 + 5));
+    return Math.round(seconds * 1000);
+  }
+
   $: sessionRunning = session?.running ?? false;
   $: statusText = sessionRunning ? 'Fishing ritual active' : 'Awaiting command';
   $: statusPillClass = sessionRunning
@@ -77,6 +83,13 @@
   function handlePresetChange(event: Event) {
     const target = event.target as HTMLSelectElement;
     setPreset(target.value);
+  }
+
+  $: if (config) {
+    const derivedTimeout = calculateMaxBiteTimeMs(config.rod_lure_value);
+    if (config.max_fishing_timeout_ms !== derivedTimeout) {
+      config.max_fishing_timeout_ms = derivedTimeout;
+    }
   }
 
   onMount(() => {
@@ -134,6 +147,10 @@
             <p class="text-xs uppercase tracking-wide text-gray-400">Hunger Status</p>
             <p class="text-lg font-semibold text-orange-400">Current</p>
             <p class="text-3xl font-mono text-white">{session?.hunger_level ?? 100}%</p>
+          </div>
+          <div class="border border-white/10 bg-[#1d1d1d] p-3 rounded-none space-y-2 sm:col-span-2 lg:col-span-4">
+            <p class="text-xs uppercase tracking-wide text-gray-400">Cycle step</p>
+            <p class="text-lg font-semibold text-emerald-400">{session?.last_action || 'Awaiting command'}</p>
           </div>
         </div>
 
@@ -386,8 +403,10 @@
                     type="number"
                     min="0"
                     bind:value={config.max_fishing_timeout_ms}
-                    class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
+                    readonly
+                    class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none opacity-80 focus:outline-none focus:border-orange-500"
                   />
+                  <p class="text-xs text-gray-400">Tied to lure value using Arcane Odyssey bite timing math.</p>
                 </label>
               </div>
 
@@ -402,6 +421,7 @@
                     bind:value={config.rod_lure_value}
                     class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
                   />
+                  <p class="text-xs text-gray-400">Derives a ~{Math.round(config.max_fishing_timeout_ms / 1000)}s timeout.</p>
                 </label>
 
                 <div class="border border-white/10 bg-[#1d1d1d] p-3 rounded-none space-y-2 text-sm text-gray-100">
