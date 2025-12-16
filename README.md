@@ -1,10 +1,10 @@
 # Arcane Fishing Bot
 
 Arcane Fishing Bot is a Rust-powered automation tool for the Roblox game **Arcane Odyssey**.
-It uses screen capture, OCR (Tesseract), and simulated input to automatically fish in-game with an Electron + Svelte desktop shell.
+It uses screen capture, OCR (Tesseract), and simulated input to automatically fish in-game with a Tauri + Svelte desktop shell.
 
 ## Features
-- Cross-platform desktop application powered by Electron with a Svelte + Tailwind UI.
+- Cross-platform desktop application powered by Tauri with a Svelte + Tailwind UI.
 - OCR-based bite detection using `rusty-tesseract`.
 - Statistics and settings GUI for tracking performance.
 - Configurable failsafe and adjustable resolution presets.
@@ -34,7 +34,7 @@ Follow the steps below in order. Every command is meant to be run from a termina
    git clone https://github.com/yourusername/arcane-fishing-bot.git
    cd arcane-fishing-bot
    ```
-4. **Install JavaScript dependencies** (downloads the Electron/Svelte packages)
+4. **Install JavaScript dependencies** (downloads the Tauri/Svelte packages)
    ```bash
    npm install
    ```
@@ -49,13 +49,13 @@ Follow the steps below in order. Every command is meant to be run from a termina
    cargo build --release
    ```
    The optimized binary is written to `target/release/arcane-fishing-bot`.
-7. **Start the Electron shell with the freshly built UI**
+7. **Start the Tauri shell with the freshly built UI**
    ```bash
-   npm run electron
+   npm run tauri dev
    ```
    The desktop window should open using the contents of `dist/`.
 
-During development you can also run the Vite dev server with `npm run dev` to iterate on the UI in the browser, then restart the Electron shell to pick up changes.
+During development you can also run the Vite dev server with `npm run dev` to iterate on the UI in the browser, then restart the Tauri shell to pick up changes.
 
 ## Automatic compile helper
 If you prefer a single command that runs all build steps in sequence, use the provided helper:
@@ -69,13 +69,13 @@ This script will:
 - Build the Svelte UI
 - Compile the Rust project in release mode
 
-After it completes, run `npm run electron` to launch the desktop app with the compiled assets.
+After it completes, run `npm run tauri dev` to launch the desktop app with the compiled assets.
 
 ## Running
-To start the Electron shell with the latest UI build:
+To start the Tauri shell with the latest UI build:
 
 ```bash
-$ npm run electron
+$ npm run tauri dev
 ```
 
 ## Loop review and future ideas
