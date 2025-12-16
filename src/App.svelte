@@ -52,173 +52,183 @@
     loadState();
   });
 </script>
-<!-- Glassmorphic Electron control surface retained from codex/switch-ui-to-electron -->
-<main class="min-h-screen bg-gradient-to-br from-[#05060c] via-[#0c0f1d] to-[#0f1325] text-mist">
-  <div class="max-w-7xl mx-auto px-6 py-10 space-y-10">
-    <header class="rounded-2xl border border-white/5 bg-white/5 shadow-2xl shadow-emerald-900/10 overflow-hidden relative">
-      <div class="absolute inset-0 opacity-40 bg-[radial-gradient(circle_at_20%_20%,rgba(16,185,129,0.08),transparent_40%),radial-gradient(circle_at_80%_0%,rgba(248,113,113,0.08),transparent_35%)]"></div>
-      <div class="relative flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 p-8">
-        <div class="space-y-2">
-          <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Arcane Odyssey</p>
-          <div class="flex items-center gap-3">
-            <h1 class="text-4xl font-display font-semibold text-white">Fishing Command Bridge</h1>
-            <span class={`status-pill ${statusPillClass}`}>
-              {statusText}
-            </span>
-          </div>
-          <p class="text-sm text-slate-400 max-w-2xl">
-            Orchestrate your fishing rituals with a sleek control surface tuned for Electron. Monitor vitals,
-            refine runes, and launch a session in a single motion.
-          </p>
-        </div>
-
-        <div class="flex flex-wrap gap-3">
-          <button class="btn-primary" on:click={start}>
-            <span class="text-lg">⚔️</span> Begin Hunt
-          </button>
-          <button class="btn-ghost" on:click={stop}>
-            <span class="text-lg">🛑</span> Halt Ritual
-          </button>
-        </div>
+<main class="min-h-screen bg-[#1a1a1a] text-gray-100 font-sans">
+  <div class="titlebar">
+    <div class="max-w-6xl mx-auto px-6 flex items-center justify-between h-12">
+      <div class="font-semibold tracking-wide uppercase text-sm">Arcane Automation</div>
+      <div class="titlebar-controls" aria-label="window controls">
+        <div class="control-dot bg-gray-500"></div>
+        <div class="control-dot bg-gray-300"></div>
+        <div class="control-dot bg-orange-500"></div>
       </div>
-    </header>
+    </div>
+  </div>
 
-    <section class="grid lg:grid-cols-[2fr_1fr] gap-6">
-      <div class="glass-panel space-y-6">
-        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <div>
-            <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Live Session</p>
-            <h2 class="text-2xl font-display text-white">Runic Telemetry</h2>
+  <div class="max-w-6xl mx-auto px-6 py-8 space-y-6">
+    <section class="grid lg:grid-cols-[2fr_1fr] gap-4">
+      <div class="border border-white/10 bg-[#141414] p-4 rounded-none space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div class="space-y-1">
+            <p class="text-xs uppercase tracking-[0.25em] text-gray-400">Live Session</p>
+            <div class="flex items-center gap-2">
+              <h1 class="text-2xl font-semibold">Session Statistics</h1>
+              <span class={`px-3 py-1 border text-xs font-semibold uppercase rounded-none ${statusPillClass}`}>
+                {statusText}
+              </span>
+            </div>
           </div>
-          <div class="flex items-center gap-2 text-sm text-slate-300">
-            <span class={`inline-flex h-2.5 w-2.5 rounded-full animate-pulse ${statusDotClass}`}></span>
-            <span>{status}</span>
+          <div class="flex items-center gap-3 text-sm">
+            <span class={`inline-flex h-2.5 w-2.5 rounded-none ${statusDotClass}`}></span>
+            <span class="font-medium">{status}</span>
           </div>
         </div>
 
-        <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div class="stat-card border-emerald-500/30 bg-emerald-500/5">
-            <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Total this run</p>
-            <p class="text-2xl font-display text-white">Fish Caught</p>
-            <p class="text-4xl font-display font-semibold text-white">{session?.fish_caught ?? 0}</p>
+        <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div class="border border-white/10 bg-[#1d1d1d] p-3 rounded-none space-y-1">
+            <p class="text-xs uppercase tracking-wide text-gray-400">Total Catch</p>
+            <p class="text-lg font-semibold text-orange-400">Session</p>
+            <p class="text-3xl font-mono text-white">{session?.fish_caught ?? 0}</p>
           </div>
-          <div class="stat-card border-sky-500/30 bg-sky-500/5">
-            <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Active focus</p>
-            <p class="text-2xl font-display text-white">Uptime</p>
-            <p class="text-4xl font-display font-semibold text-white">{session?.uptime_minutes ?? 0} min</p>
+          <div class="border border-white/10 bg-[#1d1d1d] p-3 rounded-none space-y-1">
+            <p class="text-xs uppercase tracking-wide text-gray-400">Runtime</p>
+            <p class="text-lg font-semibold text-orange-400">Active</p>
+            <p class="text-3xl font-mono text-white">{session?.uptime_minutes ?? 0} min</p>
           </div>
-          <div class="stat-card border-amber-500/30 bg-amber-500/5">
-            <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Alerts noticed</p>
-            <p class="text-2xl font-display text-white">Errors</p>
-            <p class="text-4xl font-display font-semibold text-white">{session?.errors_count ?? 0}</p>
+          <div class="border border-white/10 bg-[#1d1d1d] p-3 rounded-none space-y-1">
+            <p class="text-xs uppercase tracking-wide text-gray-400">Errors</p>
+            <p class="text-lg font-semibold text-orange-400">Count</p>
+            <p class="text-3xl font-mono text-white">{session?.errors_count ?? 0}</p>
           </div>
-          <div class="stat-card border-violet-500/30 bg-violet-500/5">
-            <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Pet vitality</p>
-            <p class="text-2xl font-display text-white">Hunger</p>
-            <p class="text-4xl font-display font-semibold text-white">{session?.hunger_level ?? 100}%</p>
+          <div class="border border-white/10 bg-[#1d1d1d] p-3 rounded-none space-y-1">
+            <p class="text-xs uppercase tracking-wide text-gray-400">Hunger Status</p>
+            <p class="text-lg font-semibold text-orange-400">Current</p>
+            <p class="text-3xl font-mono text-white">{session?.hunger_level ?? 100}%</p>
           </div>
         </div>
 
-        <div class="grid md:grid-cols-2 gap-4">
-          <div class="panel-tile">
-            <h3 class="tile-title">Chronicle</h3>
-            <ul class="space-y-3 text-sm text-slate-300">
+        <div class="grid md:grid-cols-2 gap-3">
+          <div class="border border-white/10 bg-[#121212] p-3 rounded-none space-y-3">
+            <h3 class="text-sm font-semibold uppercase tracking-wide">Activity Log</h3>
+            <ul class="space-y-2 text-sm">
               <li class="flex items-start gap-3">
-                <span class="bullet bg-emerald-500/70"></span>
-                <div>
-                  <p class="font-semibold text-white">Discord pings</p>
-                  <p class="text-slate-400">Webhook ready at {config?.webhook_url || 'not set yet'}.</p>
+                <div class="h-3 w-3 bg-orange-500 rounded-none mt-1"></div>
+                <div class="space-y-1">
+                  <p class="font-semibold">Webhook</p>
+                  <p class="text-gray-400 break-all">{config?.webhook_url || 'Not configured'}</p>
                 </div>
               </li>
               <li class="flex items-start gap-3">
-                <span class="bullet bg-sky-400/70"></span>
-                <div>
-                  <p class="font-semibold text-white">Safety wards</p>
-                  <p class="text-slate-400">{config?.failsafe_enabled ? 'Failsafe enabled for risky waters.' : 'Failsafe disabled—sail carefully.'}</p>
+                <div class="h-3 w-3 bg-green-500 rounded-none mt-1"></div>
+                <div class="space-y-1">
+                  <p class="font-semibold">Failsafe</p>
+                  <p class="text-gray-400">{config?.failsafe_enabled ? 'Enabled' : 'Disabled'}</p>
                 </div>
               </li>
               <li class="flex items-start gap-3">
-                <span class="bullet bg-amber-400/70"></span>
-                <div>
-                  <p class="font-semibold text-white">Capture runes</p>
-                  <p class="text-slate-400">{config?.screenshot_enabled ? 'Screenshots keep every catch.' : 'Rune captures are off to conserve focus.'}</p>
+                <div class="h-3 w-3 bg-yellow-400 rounded-none mt-1"></div>
+                <div class="space-y-1">
+                  <p class="font-semibold">Screenshots</p>
+                  <p class="text-gray-400">{config?.screenshot_enabled ? 'Enabled' : 'Disabled'}</p>
                 </div>
               </li>
             </ul>
           </div>
 
-          <div class="panel-tile">
-            <h3 class="tile-title">Lifetime Ledger</h3>
-            <dl class="grid grid-cols-2 gap-3 text-sm text-slate-200">
-              <div class="flex flex-col gap-1 p-3 rounded-lg bg-white/5 border border-white/5">
-                <span class="text-xs uppercase tracking-[0.2em] text-slate-400">Total Fish</span>
-                <span class="text-lg font-semibold text-white">{stats?.total_fish_caught ?? 0}</span>
+          <div class="border border-white/10 bg-[#121212] p-3 rounded-none space-y-3">
+            <h3 class="text-sm font-semibold uppercase tracking-wide">Lifetime Metrics</h3>
+            <dl class="grid grid-cols-2 gap-3 text-sm">
+              <div class="border border-white/10 bg-[#1a1a1a] p-3 rounded-none">
+                <dt class="text-gray-400 text-xs uppercase tracking-wide">Total Catch</dt>
+                <dd class="text-xl font-mono">{stats?.total_fish_caught ?? 0}</dd>
               </div>
-              <div class="flex flex-col gap-1 p-3 rounded-lg bg-white/5 border border-white/5">
-                <span class="text-xs uppercase tracking-[0.2em] text-slate-400">Runtime</span>
-                <span class="text-lg font-semibold text-white">{stats?.total_runtime_seconds ?? 0}s</span>
+              <div class="border border-white/10 bg-[#1a1a1a] p-3 rounded-none">
+                <dt class="text-gray-400 text-xs uppercase tracking-wide">Runtime (s)</dt>
+                <dd class="text-xl font-mono">{stats?.total_runtime_seconds ?? 0}</dd>
               </div>
-              <div class="flex flex-col gap-1 p-3 rounded-lg bg-white/5 border border-white/5">
-                <span class="text-xs uppercase tracking-[0.2em] text-slate-400">Best Haul</span>
-                <span class="text-lg font-semibold text-white">{stats?.best_session_fish ?? 0}</span>
+              <div class="border border-white/10 bg-[#1a1a1a] p-3 rounded-none">
+                <dt class="text-gray-400 text-xs uppercase tracking-wide">Best Session</dt>
+                <dd class="text-xl font-mono">{stats?.best_session_fish ?? 0}</dd>
               </div>
-              <div class="flex flex-col gap-1 p-3 rounded-lg bg-white/5 border border-white/5">
-                <span class="text-xs uppercase tracking-[0.2em] text-slate-400">Avg Fish / hr</span>
-                <span class="text-lg font-semibold text-white">{stats?.average_fish_per_hour ?? 0}</span>
+              <div class="border border-white/10 bg-[#1a1a1a] p-3 rounded-none">
+                <dt class="text-gray-400 text-xs uppercase tracking-wide">Avg Catch / hr</dt>
+                <dd class="text-xl font-mono">{stats?.average_fish_per_hour ?? 0}</dd>
               </div>
             </dl>
           </div>
         </div>
       </div>
 
-      <aside class="glass-panel h-full space-y-4">
-        <div class="flex items-center gap-3">
-          <div class="status-orb"></div>
-          <div>
-            <p class="text-xs uppercase tracking-[0.25em] text-slate-400">Session pulse</p>
-            <p class="text-lg font-semibold text-white">{sessionRunning ? 'Anchored & casting' : 'Idle — await command'}</p>
+      <aside class="border border-white/10 bg-[#141414] p-4 rounded-none space-y-4">
+        <div class="flex items-center justify-between">
+          <div class="space-y-1">
+            <p class="text-xs uppercase tracking-[0.25em] text-gray-400">Control</p>
+            <p class="text-lg font-semibold">Session Control</p>
+          </div>
+          <div class="flex gap-2">
+            <button
+              class="px-4 py-2 bg-green-600 border border-green-500 text-white font-semibold rounded-none hover:bg-green-500"
+              on:click={start}
+            >
+              Start Session
+            </button>
+            <button
+              class="px-4 py-2 bg-red-600 border border-red-500 text-white font-semibold rounded-none hover:bg-red-500"
+              on:click={stop}
+            >
+              Stop Session
+            </button>
           </div>
         </div>
-        <div class="rounded-xl bg-white/5 border border-white/10 p-4 space-y-2 text-sm text-slate-300">
-          <p class="flex items-center gap-2">
-            <span class="badge">Auto</span> Autoclick every <strong>{config?.autoclick_interval_ms ?? 0} ms</strong>
+
+        <div class="border border-white/10 bg-[#1d1d1d] p-3 rounded-none space-y-2 text-sm">
+          <p class="flex items-center justify-between">
+            <span class="text-gray-300">Auto-click</span>
+            <span class="font-mono text-orange-400">{config?.autoclick_interval_ms ?? 0} ms</span>
           </p>
-          <p class="flex items-center gap-2">
-            <span class="badge">Detect</span> Detection cadence <strong>{config?.detection_interval_ms ?? 0} ms</strong>
+          <p class="flex items-center justify-between">
+            <span class="text-gray-300">Detection cadence</span>
+            <span class="font-mono text-orange-400">{config?.detection_interval_ms ?? 0} ms</span>
           </p>
-          <p class="flex items-center gap-2">
-            <span class="badge">Feed</span> Nourish pet after <strong>{config?.fish_per_feed ?? 0}</strong> catches
+          <p class="flex items-center justify-between">
+            <span class="text-gray-300">Feed interval</span>
+            <span class="font-mono text-orange-400">{config?.fish_per_feed ?? 0}</span>
           </p>
-          <p class="flex items-center gap-2">
-            <span class="badge">Aura</span> Color tolerance <strong>{config?.color_tolerance ?? 0}%</strong>
+          <p class="flex items-center justify-between">
+            <span class="text-gray-300">Color tolerance</span>
+            <span class="font-mono text-orange-400">{config?.color_tolerance ?? 0}%</span>
           </p>
-        </div>
-        <div class="rounded-xl bg-gradient-to-br from-[#11162a] to-[#0c0f1d] border border-white/5 p-4 text-sm text-slate-300">
-          <p class="font-semibold text-white mb-2">Pro tip</p>
-          <p>Enable "Always on top" to keep the sanctum visible while you arrange windows for your ritual.</p>
         </div>
       </aside>
     </section>
 
-    <section class="glass-panel space-y-6">
-      <div class="flex items-center justify-between gap-3">
-        <div class="flex items-center gap-2">
-          <div class="w-1 h-8 bg-rune rounded-full"></div>
-          <h2 class="text-2xl font-display text-white">Configuration Sigils</h2>
+    <section class="border border-white/10 bg-[#141414] p-4 rounded-none space-y-4">
+      <div class="flex items-center justify-between">
+        <div class="space-y-1">
+          <p class="text-xs uppercase tracking-[0.25em] text-gray-400">Preferences</p>
+          <h2 class="text-xl font-semibold">Settings & Configuration</h2>
         </div>
         <div class="flex gap-2 text-sm">
-          <button class="btn-ghost" on:click={loadState}>Reset</button>
-          <button class="btn-primary" on:click={saveConfig}>Save Sigils</button>
+          <button class="px-4 py-2 border border-white/20 bg-[#1d1d1d] text-white font-semibold rounded-none" on:click={loadState}>
+            Reset
+          </button>
+          <button
+            class="px-4 py-2 border border-orange-500 bg-orange-600 text-black font-semibold rounded-none hover:bg-orange-500"
+            on:click={saveConfig}
+          >
+            Save
+          </button>
         </div>
       </div>
 
       {#if config}
-        <div class="grid lg:grid-cols-3 gap-5">
-          <div class="lg:col-span-2 space-y-4">
-            <div class="rounded-xl border border-white/5 bg-white/5 p-4 space-y-2">
+        <div class="grid lg:grid-cols-[2fr_1fr] gap-4">
+          <div class="space-y-4">
+            <div class="border border-white/10 bg-[#1d1d1d] p-3 rounded-none space-y-2">
               <div class="flex items-center justify-between text-sm">
-                <label class="text-slate-200" for="colorTolerance">Color tolerance</label>
-                <span class="px-3 py-1 rounded-full bg-rune/10 text-rune text-xs font-semibold">{config.color_tolerance}%</span>
+                <label class="text-gray-200" for="colorTolerance">Color tolerance</label>
+                <span class="px-2 py-1 bg-[#141414] border border-white/10 rounded-none font-mono text-orange-400">
+                  {config.color_tolerance}%
+                </span>
               </div>
               <input
                 id="colorTolerance"
@@ -226,114 +236,115 @@
                 min="0"
                 max="30"
                 bind:value={config.color_tolerance}
-                class="w-full accent-rune"
+                class="w-full accent-[#ff9a00] rounded-none"
               />
             </div>
 
             <div class="grid md:grid-cols-2 gap-3">
-              <label class="block space-y-2" for="autoClick">
-                <span class="text-sm text-slate-200">Auto-click (ms)</span>
-                <input id="autoClick" type="number" bind:value={config.autoclick_interval_ms} class="input" />
+              <label class="block space-y-1 text-sm" for="autoClick">
+                <span class="text-gray-300">Auto-click (ms)</span>
+                <input
+                  id="autoClick"
+                  type="number"
+                  bind:value={config.autoclick_interval_ms}
+                  class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
+                />
               </label>
-              <label class="block space-y-2" for="detection">
-                <span class="text-sm text-slate-200">Detection (ms)</span>
-                <input id="detection" type="number" bind:value={config.detection_interval_ms} class="input" />
+              <label class="block space-y-1 text-sm" for="detection">
+                <span class="text-gray-300">Detection (ms)</span>
+                <input
+                  id="detection"
+                  type="number"
+                  bind:value={config.detection_interval_ms}
+                  class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
+                />
               </label>
             </div>
 
             <div class="grid md:grid-cols-2 gap-3">
-              <label class="block space-y-2" for="fishPerFeed">
-                <span class="text-sm text-slate-200">Fish per feed</span>
-                <input id="fishPerFeed" type="number" bind:value={config.fish_per_feed} class="input" />
+              <label class="block space-y-1 text-sm" for="fishPerFeed">
+                <span class="text-gray-300">Fish per feed</span>
+                <input
+                  id="fishPerFeed"
+                  type="number"
+                  bind:value={config.fish_per_feed}
+                  class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
+                />
               </label>
-              <label class="block space-y-2" for="startupDelay">
-                <span class="text-sm text-slate-200">Startup delay (ms)</span>
-                <input id="startupDelay" type="number" bind:value={config.startup_delay_ms} class="input" />
+              <label class="block space-y-1 text-sm" for="startupDelay">
+                <span class="text-gray-300">Startup delay (ms)</span>
+                <input
+                  id="startupDelay"
+                  type="number"
+                  bind:value={config.startup_delay_ms}
+                  class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
+                />
               </label>
             </div>
           </div>
 
-          <div class="space-y-4">
-            <label class="block space-y-2" for="webhook">
-              <span class="text-sm text-slate-200">Webhook URL</span>
+          <div class="space-y-3">
+            <label class="block space-y-1 text-sm" for="webhook">
+              <span class="text-gray-300">Webhook URL</span>
               <input
                 id="webhook"
                 type="url"
                 bind:value={config.webhook_url}
                 placeholder="https://discord..."
-                class="input"
+                class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
               />
             </label>
 
-            <div class="rounded-xl border border-white/5 bg-white/5 p-4 space-y-3 text-sm text-slate-100">
-              <label class="flex items-center justify-between gap-3 p-3 rounded-lg border border-white/5 bg-black/20 cursor-pointer">
-                <span class="text-sm">Enable rune captures</span>
-                <input type="checkbox" bind:checked={config.screenshot_enabled} />
+            <div class="border border-white/10 bg-[#1d1d1d] p-3 rounded-none space-y-2 text-sm text-gray-100">
+              <label class="flex items-center justify-between gap-3 p-2 border border-white/10 bg-[#0f0f0f] rounded-none cursor-pointer">
+                <span class="text-sm">Enable screenshots</span>
+                <input class="rounded-none" type="checkbox" bind:checked={config.screenshot_enabled} />
               </label>
-              <label class="flex items-center justify-between gap-3 p-3 rounded-lg border border-white/5 bg-black/20 cursor-pointer">
-                <span class="text-sm">Failsafe wards</span>
-                <input type="checkbox" bind:checked={config.failsafe_enabled} />
+              <label class="flex items-center justify-between gap-3 p-2 border border-white/10 bg-[#0f0f0f] rounded-none cursor-pointer">
+                <span class="text-sm">Enable failsafe</span>
+                <input class="rounded-none" type="checkbox" bind:checked={config.failsafe_enabled} />
               </label>
-              <label class="flex items-center justify-between gap-3 p-3 rounded-lg border border-white/5 bg-black/20 cursor-pointer">
+              <label class="flex items-center justify-between gap-3 p-2 border border-white/10 bg-[#0f0f0f] rounded-none cursor-pointer">
                 <span class="text-sm">Advanced detection</span>
-                <input type="checkbox" bind:checked={config.advanced_detection} />
+                <input class="rounded-none" type="checkbox" bind:checked={config.advanced_detection} />
               </label>
-              <label class="flex items-center justify-between gap-3 p-3 rounded-lg border border-white/5 bg-black/20 cursor-pointer">
+              <label class="flex items-center justify-between gap-3 p-2 border border-white/10 bg-[#0f0f0f] rounded-none cursor-pointer">
                 <span class="text-sm">Always on top</span>
-                <input type="checkbox" bind:checked={config.always_on_top} />
+                <input class="rounded-none" type="checkbox" bind:checked={config.always_on_top} />
               </label>
             </div>
           </div>
         </div>
       {:else}
-        <p class="text-slate-400">Loading runes...</p>
+        <p class="text-gray-400">Loading...</p>
       {/if}
     </section>
   </div>
 </main>
 
 <style>
-  .input {
-    @apply w-full bg-[#0e1220] border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-rune transition;
+  .titlebar {
+    -webkit-app-region: drag;
+    background: #0f0f0f;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   }
 
-  .glass-panel {
-    @apply rounded-2xl border border-white/5 bg-white/5 shadow-xl shadow-emerald-900/10 p-6;
+  .titlebar * {
+    -webkit-app-region: no-drag;
   }
 
-  .btn-primary {
-    @apply inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-rune/60 bg-rune/20 text-white hover:bg-rune/30 transition;
+  .titlebar .font-semibold {
+    -webkit-app-region: drag;
   }
 
-  .btn-ghost {
-    @apply inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-white/10 text-slate-100 hover:border-rune/50 hover:text-white transition;
+  .titlebar-controls {
+    display: flex;
+    gap: 0.5rem;
   }
 
-  .status-pill {
-    @apply inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-semibold;
-  }
-
-  .panel-tile {
-    @apply rounded-xl border border-white/5 bg-white/5 p-4 space-y-3 shadow-inner shadow-black/10;
-  }
-
-  .tile-title {
-    @apply text-lg font-semibold text-white flex items-center gap-2;
-  }
-
-  .bullet {
-    @apply h-2 w-2 rounded-full mt-1.5 flex-shrink-0;
-  }
-
-  .status-orb {
-    @apply h-12 w-12 rounded-full bg-gradient-to-br from-emerald-400/60 via-emerald-500/40 to-emerald-600/40 border border-emerald-400/50 shadow-lg shadow-emerald-500/20 animate-pulse;
-  }
-
-  .badge {
-    @apply inline-flex items-center px-2 py-0.5 rounded-full bg-white/10 text-[11px] font-semibold tracking-wide uppercase;
-  }
-
-  .stat-card {
-    @apply rounded-xl border p-4 space-y-2 shadow-md shadow-black/10 backdrop-blur;
+  .control-dot {
+    width: 14px;
+    height: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
   }
 </style>
