@@ -81,6 +81,29 @@
     configDirty = false;
   }
 
+  function setPreset(preset: string) {
+    if (!config) return;
+    const presetData = resolutionPresets[preset];
+    config.region_preset = preset;
+    if (presetData) {
+      config.red_region = { ...presetData.red_region };
+      config.yellow_region = { ...presetData.yellow_region };
+      config.hunger_region = { ...presetData.hunger_region };
+    }
+  }
+
+  function handlePresetChange(event: Event) {
+    const target = event.target as HTMLSelectElement;
+    setPreset(target.value);
+  }
+
+  $: if (config) {
+    const derivedTimeout = calculateMaxBiteTimeMs(config.rod_lure_value);
+    if (config.max_fishing_timeout_ms !== derivedTimeout) {
+      config.max_fishing_timeout_ms = derivedTimeout;
+    }
+  }
+
   onMount(() => {
     loadState();
 

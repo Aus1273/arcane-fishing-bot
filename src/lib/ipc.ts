@@ -101,7 +101,11 @@ function fallbackState(): BotState {
   };
 }
 
-const api: BotApi | undefined = typeof window !== 'undefined' ? window.bot : undefined;
+function getApi(): BotApi | undefined {
+  if (typeof window === 'undefined') return undefined;
+  return window.bot;
+}
+
 let inMemoryState: BotState | null = null;
 
 function ensureFallbackState(): BotState {
@@ -112,22 +116,26 @@ function ensureFallbackState(): BotState {
 }
 
 export async function getState(): Promise<BotState> {
+  const api = getApi();
   if (api?.getState) return api.getState();
   return ensureFallbackState();
 }
 
 export async function getConfig(): Promise<BotConfig> {
+  const api = getApi();
   if (api?.getConfig) return api.getConfig();
   return ensureFallbackState().config;
 }
 
 export async function getStats(): Promise<{ stats: LifetimeStats; session: SessionState }> {
+  const api = getApi();
   if (api?.getStats) return api.getStats();
   const fallback = ensureFallbackState();
   return { stats: fallback.stats, session: fallback.session };
 }
 
 export async function saveConfig(config: BotConfig): Promise<void> {
+  const api = getApi();
   if (api?.saveConfig) return api.saveConfig(config);
 
   const state = ensureFallbackState();
@@ -136,6 +144,7 @@ export async function saveConfig(config: BotConfig): Promise<void> {
 }
 
 export async function startSession(): Promise<void> {
+  const api = getApi();
   if (api?.startSession) return api.startSession();
 
   const state = ensureFallbackState();
@@ -145,6 +154,7 @@ export async function startSession(): Promise<void> {
 }
 
 export async function stopSession(): Promise<void> {
+  const api = getApi();
   if (api?.stopSession) return api.stopSession();
 
   const state = ensureFallbackState();
