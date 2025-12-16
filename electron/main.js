@@ -9,6 +9,8 @@ const __dirname = path.dirname(__filename);
 
 const statePath = path.join(app.getPath('userData'), 'bot-state.json');
 let cachedState = null;
+let cycleTimer = null;
+let cycleStepIndex = 0;
 
 const defaultState = () => ({
   config: {
@@ -90,6 +92,7 @@ async function startSession() {
   cachedState.session.started_at = Date.now();
   cachedState.session.last_action = 'Session started';
   await saveState();
+  startFishCycle();
 }
 
 async function stopSession() {
@@ -100,6 +103,7 @@ async function stopSession() {
   cachedState.session.last_action = 'Session stopped';
   cachedState.stats.sessions_completed += 1;
   cachedState.stats.last_updated = new Date().toISOString();
+  stopFishCycle();
   await saveState();
 }
 
@@ -108,6 +112,50 @@ async function saveConfig(config) {
   cachedState.config = config;
   cachedState.session.last_action = 'Config updated';
   await saveState();
+}
+
+function stopFishCycle() {
+  if (cycleTimer) {
+    clearTimeout(cycleTimer);
+    cycleTimer = null;
+  }
+  cycleStepIndex = 0;
+}
+
+function startFishCycle() {
+  stopFishCycle();
+  if (!cachedState?.session.running) return;
+
+  const runStep = () => {
+    if (!cachedState?.session.running) return;
+    const steps = [
+      { label: 'Waiting for bite (red)', duration: cachedState.config.detection_interval_ms },
+      { label: 'Confirming catch (yellow)', duration: cachedState.config.detection_interval_ms },
+      { label: 'Checking hunger overlay', duration: cachedState.config.autoclick_interval_ms },
+      { label: 'Resetting rod & lure', duration: cachedState.config.startup_delay_ms },
+    ];
+
+    const step = steps[cycleStepIndex % steps.length];
+    cycleStepIndex += 1;
+
+    cachedState.session.last_action = step.label;
+    if (step.label.includes('Confirming catch')) {
+      cachedState.session.fish_caught += 1;
+      cachedState.stats.total_fish_caught += 1;
+    }
+
+    cachedState.session.hunger_level = Math.max(0, cachedState.session.hunger_level - 1);
+    cachedState.stats.last_updated = new Date().toISOString();
+
+    saveState();
+
+    const nextDelay = Math.max(500, step.duration);
+    cycleTimer = setTimeout(runStep, nextDelay);
+  };
+
+  cachedState.session.last_action = 'Waiting for bite (red)';
+  saveState();
+  cycleTimer = setTimeout(runStep, Math.max(500, cachedState.config.detection_interval_ms));
 }
 
 function createWindow() {
