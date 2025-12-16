@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import {
     getState,
     saveConfig as persistConfig,
@@ -14,6 +14,7 @@
   let stats: LifetimeStats | null = null;
   let session: SessionState | null = null;
   let status = 'Summoning arcane waters...';
+  let refreshInterval: ReturnType<typeof setInterval> | null = null;
   const settingsTabs = ['general', 'automation', 'regions'] as const;
   let activeSettingsTab: (typeof settingsTabs)[number] = 'general';
 
@@ -53,7 +54,7 @@
 
   async function start() {
     await startBot();
-    status = 'Fishing ritual active';
+    status = 'Fishing cycle engaged';
     await loadState();
   }
 
@@ -66,7 +67,30 @@
   async function saveConfig() {
     if (!config) return;
     await persistConfig(config);
-    status = 'Runes etched into memory';
+    status = 'Configuration saved';
+  }
+
+  function setPreset(preset: string) {
+    if (!config) return;
+    const presetData = resolutionPresets[preset];
+    config.region_preset = preset;
+    if (presetData) {
+      config.red_region = { ...presetData.red_region };
+      config.yellow_region = { ...presetData.yellow_region };
+      config.hunger_region = { ...presetData.hunger_region };
+    }
+  }
+
+  function handlePresetChange(event: Event) {
+    const target = event.target as HTMLSelectElement;
+    setPreset(target.value);
+  }
+
+  $: if (config) {
+    const derivedTimeout = calculateMaxBiteTimeMs(config.rod_lure_value);
+    if (config.max_fishing_timeout_ms !== derivedTimeout) {
+      config.max_fishing_timeout_ms = derivedTimeout;
+    }
   }
 
   function setPreset(preset: string) {
@@ -94,6 +118,17 @@
 
   onMount(() => {
     loadState();
+
+    refreshInterval = setInterval(() => {
+      loadState();
+    }, 1000);
+  });
+
+  onDestroy(() => {
+    if (refreshInterval) {
+      clearInterval(refreshInterval);
+      refreshInterval = null;
+    }
   });
 </script>
 <main class="min-h-screen bg-[#1a1a1a] text-gray-100 font-sans">
