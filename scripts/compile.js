@@ -34,7 +34,7 @@ async function main() {
   console.log('\nBuild complete!');
   console.log('- UI build output: dist/');
   console.log('- Rust release binary: target/release/arcane-fishing-bot');
-  console.log("Run 'npm run electron' to open the desktop app using the built UI.");
+  console.log("Run 'npm run tauri dev' to open the desktop app using the built UI.");
 }
 
 main().catch((error) => {
