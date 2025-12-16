@@ -101,32 +101,66 @@ function fallbackState(): BotState {
   };
 }
 
-const api: BotApi | undefined = typeof window !== 'undefined' ? window.bot : undefined;
+function getApi(): BotApi | undefined {
+  if (typeof window === 'undefined') return undefined;
+  return window.bot;
+}
+
+let inMemoryState: BotState | null = null;
+
+function ensureFallbackState(): BotState {
+  if (!inMemoryState) {
+    inMemoryState = fallbackState();
+  }
+  return inMemoryState;
+}
 
 export async function getState(): Promise<BotState> {
+  const api = getApi();
   if (api?.getState) return api.getState();
-  return fallbackState();
+  return ensureFallbackState();
 }
 
 export async function getConfig(): Promise<BotConfig> {
+  const api = getApi();
   if (api?.getConfig) return api.getConfig();
-  return fallbackState().config;
+  return ensureFallbackState().config;
 }
 
 export async function getStats(): Promise<{ stats: LifetimeStats; session: SessionState }> {
+  const api = getApi();
   if (api?.getStats) return api.getStats();
-  const fallback = fallbackState();
+  const fallback = ensureFallbackState();
   return { stats: fallback.stats, session: fallback.session };
 }
 
 export async function saveConfig(config: BotConfig): Promise<void> {
+  const api = getApi();
   if (api?.saveConfig) return api.saveConfig(config);
+
+  const state = ensureFallbackState();
+  state.config = config;
+  state.session.last_action = 'Config updated';
 }
 
 export async function startSession(): Promise<void> {
+  const api = getApi();
   if (api?.startSession) return api.startSession();
+
+  const state = ensureFallbackState();
+  state.session.running = true;
+  state.session.started_at = Date.now();
+  state.session.last_action = 'Session started';
 }
 
 export async function stopSession(): Promise<void> {
+  const api = getApi();
   if (api?.stopSession) return api.stopSession();
+
+  const state = ensureFallbackState();
+  state.session.running = false;
+  state.session.started_at = null;
+  state.session.last_action = 'Session stopped';
+  state.stats.sessions_completed += 1;
+  state.stats.last_updated = new Date().toISOString();
 }
