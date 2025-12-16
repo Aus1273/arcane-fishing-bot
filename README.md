@@ -78,6 +78,10 @@ To start the Electron shell with the latest UI build:
 $ npm run electron
 ```
 
+## Loop review and future ideas
+
+See [docs/suggestions.md](docs/suggestions.md) for a review of the current control loops plus suggestions on where to add new capabilities or trim redundant work.
+
 ## Disclaimer
 Use responsibly and at your own risk. This project is provided for educational purposes and is not affiliated with
 Roblox or Arcane Odyssey.
