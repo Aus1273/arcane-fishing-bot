@@ -17,6 +17,7 @@
   let refreshInterval: ReturnType<typeof setInterval> | null = null;
   const settingsTabs = ['general', 'automation', 'regions'] as const;
   let activeSettingsTab: (typeof settingsTabs)[number] = 'general';
+  let configDirty = false;
 
   const resolutionPresets: Record<string, { red_region: { x: number; y: number; width: number; height: number }; yellow_region: { x: number; y: number; width: number; height: number }; hunger_region: { x: number; y: number; width: number; height: number } }> = {
     '3440x1440': {
@@ -44,9 +45,18 @@
     : 'border-amber-500/40 bg-amber-500/10 text-amber-100';
   $: statusDotClass = sessionRunning ? 'bg-emerald-400' : 'bg-amber-400';
 
-  async function loadState() {
+  function markConfigDirty() {
+    configDirty = true;
+  }
+
+  async function loadState(options: { preserveConfig?: boolean } = {}) {
+    const { preserveConfig = false } = options;
     const state = await getState();
-    config = state.config;
+    if (!preserveConfig || !configDirty || !config) {
+      config = state.config;
+      configDirty = false;
+    }
+
     stats = state.stats;
     session = state.session;
     status = statusText;
@@ -55,49 +65,27 @@
   async function start() {
     await startBot();
     status = 'Fishing cycle engaged';
-    await loadState();
+    await loadState({ preserveConfig: true });
   }
 
   async function stop() {
     await stopBot();
     status = 'Ritual paused';
-    await loadState();
+    await loadState({ preserveConfig: true });
   }
 
   async function saveConfig() {
     if (!config) return;
     await persistConfig(config);
     status = 'Configuration saved';
-  }
-
-  function setPreset(preset: string) {
-    if (!config) return;
-    const presetData = resolutionPresets[preset];
-    config.region_preset = preset;
-    if (presetData) {
-      config.red_region = { ...presetData.red_region };
-      config.yellow_region = { ...presetData.yellow_region };
-      config.hunger_region = { ...presetData.hunger_region };
-    }
-  }
-
-  function handlePresetChange(event: Event) {
-    const target = event.target as HTMLSelectElement;
-    setPreset(target.value);
-  }
-
-  $: if (config) {
-    const derivedTimeout = calculateMaxBiteTimeMs(config.rod_lure_value);
-    if (config.max_fishing_timeout_ms !== derivedTimeout) {
-      config.max_fishing_timeout_ms = derivedTimeout;
-    }
+    configDirty = false;
   }
 
   onMount(() => {
     loadState();
 
     refreshInterval = setInterval(() => {
-      loadState();
+      loadState({ preserveConfig: true });
     }, 1000);
   });
 
@@ -281,7 +269,7 @@
       </div>
 
       {#if config}
-        <div class="space-y-4">
+        <div class="space-y-4" on:input={markConfigDirty} on:change={markConfigDirty}>
           <div class="flex flex-wrap gap-2 border border-white/10 bg-[#0f0f0f] p-2 rounded-none text-sm">
             {#each settingsTabs as tab}
               <button
