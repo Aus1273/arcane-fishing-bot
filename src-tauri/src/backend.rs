@@ -246,7 +246,11 @@ impl SharedState {
 pub fn start_bot(state: &SharedState) {
     let mut session = state.session.write();
     session.running = true;
-    session.last_action = format!("Started at {:02}:{:02}", Local::now().hour(), Local::now().minute());
+    session.last_action = format!(
+        "Started at {:02}:{:02}",
+        Local::now().hour(),
+        Local::now().minute()
+    );
 }
 
 pub fn stop_bot(state: &SharedState) {
@@ -254,4 +258,3 @@ pub fn stop_bot(state: &SharedState) {
     session.running = false;
     session.last_action = "Stopped".to_string();
 }
-
