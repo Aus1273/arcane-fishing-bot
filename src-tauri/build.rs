@@ -29,12 +29,12 @@ fn main() {
 }
 
 fn ensure_fallback_icon() {
-    let Ok(out_dir) = env::var("OUT_DIR") else {
-        eprintln!("warning: failed to read OUT_DIR for fallback icon");
+    let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") else {
+        eprintln!("warning: failed to read CARGO_MANIFEST_DIR for fallback icon");
         return;
     };
 
-    let icon_dir = PathBuf::from(out_dir).join("icons");
+    let icon_dir = PathBuf::from(manifest_dir).join("icons");
     if let Err(error) = fs::create_dir_all(&icon_dir) {
         eprintln!("warning: failed to create icon dir {icon_dir:?}: {error}");
         return;
