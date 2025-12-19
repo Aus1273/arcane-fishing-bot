@@ -25,6 +25,7 @@
   let unlistenStateUpdates: (() => void) | null = null;
   let timeoutRequestId = 0;
   const uiProfileStorageKey = 'arcane-ui-profile';
+  const simpleViewStorageKey = 'arcane-simple-view';
   const uiProfiles = {
     Default: {
       label: 'Default',
@@ -40,6 +41,7 @@
     },
   };
   let uiProfile = 'Default';
+  let simpleView = false;
 
   const isTauri = typeof window !== 'undefined' && Boolean(window.__TAURI_IPC__);
 
@@ -127,6 +129,12 @@
     }
   }
 
+  function handleSimpleViewToggle() {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(simpleViewStorageKey, simpleView ? 'true' : 'false');
+    }
+  }
+
   $: if (config) {
     syncTimeout(config.rod_lure_value);
   }
@@ -136,6 +144,11 @@
       const storedProfile = localStorage.getItem(uiProfileStorageKey);
       if (storedProfile && uiProfiles[storedProfile]) {
         uiProfile = storedProfile;
+      }
+
+      const storedSimpleView = localStorage.getItem(simpleViewStorageKey);
+      if (storedSimpleView !== null) {
+        simpleView = storedSimpleView === 'true';
       }
     }
     loadState();
