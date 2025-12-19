@@ -1,7 +1,12 @@
 mod backend;
 
-use backend::{start_bot, stop_bot, BotConfig, LifetimeStats, SessionState, SharedState};
-use tauri::{Manager, State};
+use backend::{
+    calculate_timeout_ms, resolution_presets, start_bot, stop_bot, BotConfig, LifetimeStats,
+    OcrHandler, ResolutionPreset, SessionState, SharedState,
+};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use tauri::{Manager, State, Window};
 
 struct AppState(SharedState);
 
@@ -25,17 +30,28 @@ fn get_stats(state: State<'_, AppState>) -> (LifetimeStats, SessionState) {
 }
 
 #[tauri::command]
-fn start_session(state: State<'_, AppState>) {
-    start_bot(&state.0);
+fn start_session(state: State<'_, AppState>, window: Window) {
+    start_bot(&state.0, &window);
 }
 
 #[tauri::command]
-fn stop_session(state: State<'_, AppState>) {
-    stop_bot(&state.0);
+fn stop_session(state: State<'_, AppState>, window: Window) {
+    stop_bot(&state.0, &window);
+}
+
+#[tauri::command]
+fn calculate_timeout(lure_value: f32) -> u64 {
+    calculate_timeout_ms(lure_value)
+}
+
+#[tauri::command]
+fn get_resolution_presets() -> HashMap<String, ResolutionPreset> {
+    resolution_presets()
 }
 
 fn main() {
-    let shared_state = SharedState::new().expect("failed to load config");
+    let ocr = Arc::new(Mutex::new(OcrHandler::new()));
+    let shared_state = SharedState::new(ocr).expect("failed to load config");
 
     tauri::Builder::default()
         .manage(AppState(shared_state))
@@ -44,7 +60,9 @@ fn main() {
             save_config,
             get_stats,
             start_session,
-            stop_session
+            stop_session,
+            calculate_timeout,
+            get_resolution_presets
         ])
         .setup(|app| {
             let window = app.get_window("main").expect("main window");
