@@ -25,8 +25,8 @@ fn get_stats(state: State<'_, AppState>) -> (LifetimeStats, SessionState) {
 }
 
 #[tauri::command]
-fn start_session(state: State<'_, AppState>) {
-    start_bot(&state.0);
+fn start_session(window: tauri::Window, state: State<'_, AppState>) {
+    start_bot(&state.0, window);
 }
 
 #[tauri::command]
