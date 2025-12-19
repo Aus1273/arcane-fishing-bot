@@ -25,7 +25,6 @@
   let unlistenStateUpdates: (() => void) | null = null;
   let timeoutRequestId = 0;
   const uiProfileStorageKey = 'arcane-ui-profile';
-  const simpleViewStorageKey = 'arcane-simple-view';
   const uiProfiles = {
     Default: {
       label: 'Default',
@@ -35,9 +34,12 @@
       label: 'LGBTQ+ Pride',
       className: 'theme-pride',
     },
+    'Half-Life 2 Black Mesa': {
+      label: 'Half-Life 2 Black Mesa',
+      className: 'theme-black-mesa',
+    },
   };
   let uiProfile = 'Default';
-  let simpleView = false;
 
   const isTauri = typeof window !== 'undefined' && Boolean(window.__TAURI_IPC__);
 
@@ -125,14 +127,6 @@
     }
   }
 
-  function handleSimpleViewToggle(event: Event) {
-    const target = event.target as HTMLInputElement;
-    simpleView = target.checked;
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(simpleViewStorageKey, simpleView ? 'true' : 'false');
-    }
-  }
-
   $: if (config) {
     syncTimeout(config.rod_lure_value);
   }
@@ -143,7 +137,6 @@
       if (storedProfile && uiProfiles[storedProfile]) {
         uiProfile = storedProfile;
       }
-      simpleView = localStorage.getItem(simpleViewStorageKey) === 'true';
     }
     loadState();
     loadResolutionPresets();
@@ -349,24 +342,25 @@
           </div>
         </div>
 
-        {#if config}
-          <div class="space-y-4" on:input={markConfigDirty} on:change={markConfigDirty}>
-            <div class="flex flex-wrap gap-2 border border-white/10 bg-[#0f0f0f] p-2 rounded-none text-sm">
-              {#each settingsTabs as tab}
-                <button
-                  class={`px-3 py-2 uppercase tracking-wide border rounded-none transition ${{
-                    general: 'text-gray-200 border-white/10 bg-[#1a1a1a]',
-                    automation: 'text-gray-200 border-white/10 bg-[#1a1a1a]',
-                    regions: 'text-gray-200 border-white/10 bg-[#1a1a1a]',
-                  }[tab]} ${activeSettingsTab === tab ? 'border-orange-500 text-white bg-orange-600' : ''}`}
-                  on:click={() => (activeSettingsTab = tab)}
-                >
-                  {tab === 'general' ? 'General' : ''}
-                  {tab === 'automation' ? 'Automation' : ''}
-                  {tab === 'regions' ? 'Regions' : ''}
-                </button>
-              {/each}
-            </div>
+          {#if activeSettingsTab === 'general'}
+            <div class="grid lg:grid-cols-[2fr_1fr] gap-4">
+              <div class="space-y-4">
+                <div class="border border-white/10 bg-[#1d1d1d] p-3 rounded-none space-y-2">
+                  <div class="flex items-center justify-between text-sm">
+                    <label class="text-gray-200" for="colorTolerance">Color tolerance</label>
+                    <span class="slider-value px-2 py-1 bg-[#141414] border border-white/10 rounded-none font-mono text-orange-400">
+                      {config.color_tolerance}%
+                    </span>
+                  </div>
+                  <input
+                    id="colorTolerance"
+                    type="range"
+                    min="0"
+                    max="30"
+                    bind:value={config.color_tolerance}
+                    class="w-full accent-[#ff9a00] rounded-none"
+                  />
+                </div>
 
             {#if activeSettingsTab === 'general'}
               <div class="grid lg:grid-cols-[2fr_1fr] gap-4">
@@ -443,24 +437,80 @@
                     />
                   </label>
 
-                  <div class="border border-white/10 bg-[#1d1d1d] p-3 rounded-none space-y-2 text-sm text-gray-100">
-                    <label class="flex items-center justify-between gap-3 p-2 border border-white/10 bg-[#0f0f0f] rounded-none cursor-pointer">
-                      <span class="text-sm">Enable screenshots</span>
-                      <input class="rounded-none" type="checkbox" bind:checked={config.screenshot_enabled} />
-                    </label>
-                    <label class="flex items-center justify-between gap-3 p-2 border border-white/10 bg-[#0f0f0f] rounded-none cursor-pointer">
-                      <span class="text-sm">Enable failsafe</span>
-                      <input class="rounded-none" type="checkbox" bind:checked={config.failsafe_enabled} />
-                    </label>
-                    <label class="flex items-center justify-between gap-3 p-2 border border-white/10 bg-[#0f0f0f] rounded-none cursor-pointer">
-                      <span class="text-sm">Advanced detection</span>
-                      <input class="rounded-none" type="checkbox" bind:checked={config.advanced_detection} />
-                    </label>
-                    <label class="flex items-center justify-between gap-3 p-2 border border-white/10 bg-[#0f0f0f] rounded-none cursor-pointer">
-                      <span class="text-sm">Always on top</span>
-                      <input class="rounded-none" type="checkbox" bind:checked={config.always_on_top} />
-                    </label>
-                  </div>
+              <div class="space-y-3">
+                <label class="block space-y-1 text-sm" for="webhook">
+                  <span class="text-gray-300">Webhook URL</span>
+                  <input
+                    id="webhook"
+                    type="url"
+                    bind:value={config.webhook_url}
+                    placeholder="https://discord..."
+                    class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
+                  />
+                </label>
+
+                <div class="border border-white/10 bg-[#1d1d1d] p-3 rounded-none space-y-2 text-sm text-gray-100">
+                  <label class="flex items-center justify-between gap-3 p-2 border border-white/10 bg-[#0f0f0f] rounded-none cursor-pointer">
+                    <span class="text-sm">Enable screenshots</span>
+                    <input class="rounded-none" type="checkbox" bind:checked={config.screenshot_enabled} />
+                  </label>
+                  <label class="flex items-center justify-between gap-3 p-2 border border-white/10 bg-[#0f0f0f] rounded-none cursor-pointer">
+                    <span class="text-sm">Enable failsafe</span>
+                    <input class="rounded-none" type="checkbox" bind:checked={config.failsafe_enabled} />
+                  </label>
+                  <label class="flex items-center justify-between gap-3 p-2 border border-white/10 bg-[#0f0f0f] rounded-none cursor-pointer">
+                    <span class="text-sm">Advanced detection</span>
+                    <input class="rounded-none" type="checkbox" bind:checked={config.advanced_detection} />
+                  </label>
+                  <label class="flex items-center justify-between gap-3 p-2 border border-white/10 bg-[#0f0f0f] rounded-none cursor-pointer">
+                    <span class="text-sm">Always on top</span>
+                    <input class="rounded-none" type="checkbox" bind:checked={config.always_on_top} />
+                  </label>
+                </div>
+
+                <label class="block space-y-1 text-sm" for="uiProfile">
+                  <span class="text-gray-300">GUI profile</span>
+                  <select
+                    id="uiProfile"
+                    class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
+                    bind:value={uiProfile}
+                    on:change={handleUiProfileChange}
+                  >
+                    {#each Object.keys(uiProfiles) as profile}
+                      <option value={profile}>{uiProfiles[profile].label}</option>
+                    {/each}
+                  </select>
+                  <p class="text-xs text-gray-400">Switch between Default and the pink rainbow "LGBTQ+ Pride" preset.</p>
+                </label>
+              </div>
+            </div>
+          {:else if activeSettingsTab === 'automation'}
+            <div class="grid md:grid-cols-2 gap-4">
+              <div class="space-y-3">
+                <label class="block space-y-1 text-sm" for="screenshotInterval">
+                  <span class="text-gray-300">Screenshot interval (mins)</span>
+                  <input
+                    id="screenshotInterval"
+                    type="number"
+                    min="1"
+                    bind:value={config.screenshot_interval_mins}
+                    class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
+                  />
+                </label>
+
+                <label class="block space-y-1 text-sm" for="maxFishingTimeout">
+                  <span class="text-gray-300">Max fishing timeout (ms)</span>
+                  <input
+                    id="maxFishingTimeout"
+                    type="number"
+                    min="0"
+                    bind:value={config.max_fishing_timeout_ms}
+                    readonly
+                    class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none opacity-80 focus:outline-none focus:border-orange-500"
+                  />
+                  <p class="text-xs text-gray-400">Tied to lure value using Arcane Odyssey bite timing math.</p>
+                </label>
+              </div>
 
                   <label class="block space-y-1 text-sm" for="uiProfile">
                     <span class="text-gray-300">GUI profile</span>
@@ -704,16 +754,19 @@
   .app-shell :global(textarea) {
     background: var(--panel-bg);
     border-color: var(--panel-border);
+    box-shadow: var(--panel-shadow);
   }
 
   .app-shell :global(button) {
     background: var(--button-bg);
     border-color: var(--button-border);
     color: var(--button-text);
+    box-shadow: var(--button-shadow);
   }
 
   .app-shell :global(button:hover) {
     background: var(--button-bg-hover);
+    box-shadow: var(--button-shadow-hover);
   }
 
   .app-shell :global(input),
@@ -722,6 +775,7 @@
     background: var(--input-bg);
     border-color: var(--input-border);
     color: var(--input-text);
+    box-shadow: var(--input-shadow);
   }
 
   .app-shell :global(input[type='range']) {
@@ -756,13 +810,17 @@
     --titlebar-border: rgba(255, 255, 255, 0.1);
     --panel-bg: #1d1d1d;
     --panel-border: rgba(255, 255, 255, 0.1);
+    --panel-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
     --button-bg: #1d1d1d;
     --button-bg-hover: #2a2a2a;
     --button-border: rgba(255, 255, 255, 0.2);
     --button-text: #ffffff;
+    --button-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+    --button-shadow-hover: 0 8px 22px rgba(0, 0, 0, 0.45);
     --input-bg: #0f0f0f;
     --input-border: rgba(255, 255, 255, 0.15);
     --input-text: #ffffff;
+    --input-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
   }
 
   .theme-pride {
@@ -779,15 +837,38 @@
     );
     --titlebar-bg: linear-gradient(90deg, #ff4d9d, #ffb347, #ffee93, #7afcff, #7a9bff, #c77dff);
     --titlebar-border: rgba(255, 255, 255, 0.35);
-    --panel-bg: linear-gradient(135deg, rgba(255, 95, 162, 0.25), rgba(122, 155, 255, 0.25));
-    --panel-border: rgba(255, 255, 255, 0.45);
-    --button-bg: linear-gradient(90deg, #ff5fa2, #ffb347, #ffee93, #7afcff, #7a9bff, #c77dff);
-    --button-bg-hover: linear-gradient(90deg, #ff7db7, #ffd479, #fff3b8, #9effff, #96b5ff, #d9a1ff);
-    --button-border: rgba(255, 255, 255, 0.6);
+    --panel-bg: rgba(20, 18, 24, 0.72);
+    --panel-border: rgba(255, 255, 255, 0.25);
+    --panel-shadow: 0 14px 32px rgba(0, 0, 0, 0.35), 0 0 18px rgba(255, 95, 162, 0.25);
+    --button-bg: linear-gradient(120deg, #ff5fa2, #ffb347, #7afcff, #7a9bff);
+    --button-bg-hover: linear-gradient(120deg, #ff7db7, #ffd479, #9effff, #96b5ff);
+    --button-border: rgba(255, 255, 255, 0.55);
     --button-text: #0f0f0f;
+    --button-shadow: 0 10px 20px rgba(255, 95, 162, 0.35), 0 4px 12px rgba(0, 0, 0, 0.35);
+    --button-shadow-hover: 0 12px 24px rgba(255, 95, 162, 0.45), 0 6px 14px rgba(0, 0, 0, 0.4);
     --input-bg: rgba(15, 15, 15, 0.65);
-    --input-border: rgba(255, 255, 255, 0.5);
+    --input-border: rgba(255, 255, 255, 0.4);
     --input-text: #ffffff;
+    --input-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  }
+
+  .theme-black-mesa {
+    --app-bg: radial-gradient(circle at top left, #2b2b2b 0%, #121212 55%, #0a0a0a 100%);
+    --titlebar-bg: linear-gradient(90deg, #111111, #1f1f1f, #0f0f0f);
+    --titlebar-border: rgba(255, 140, 0, 0.5);
+    --panel-bg: linear-gradient(135deg, rgba(255, 140, 0, 0.15), rgba(0, 0, 0, 0.65));
+    --panel-border: rgba(255, 140, 0, 0.35);
+    --panel-shadow: 0 10px 26px rgba(0, 0, 0, 0.5), 0 0 18px rgba(255, 140, 0, 0.25);
+    --button-bg: linear-gradient(90deg, #ff8c00, #ff6f00, #d94e00);
+    --button-bg-hover: linear-gradient(90deg, #ffad33, #ff8a1a, #ff6a00);
+    --button-border: rgba(255, 140, 0, 0.7);
+    --button-text: #0a0a0a;
+    --button-shadow: 0 8px 18px rgba(255, 140, 0, 0.35), 0 4px 12px rgba(0, 0, 0, 0.45);
+    --button-shadow-hover: 0 10px 22px rgba(255, 140, 0, 0.5), 0 6px 14px rgba(0, 0, 0, 0.5);
+    --input-bg: rgba(12, 12, 12, 0.85);
+    --input-border: rgba(255, 140, 0, 0.45);
+    --input-text: #f2f2f2;
+    --input-shadow: inset 0 0 0 1px rgba(255, 140, 0, 0.15);
   }
 
   .titlebar {
