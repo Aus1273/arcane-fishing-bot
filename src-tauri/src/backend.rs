@@ -360,7 +360,11 @@ fn check_hunger_ocr(region: Region) -> Result<u32> {
         config_variables,
     };
 
-    let result = if let Ok(tess_image) = TessImage::from_path(&temp_path) {
+    let result = if let Ok(mut tess_image) = TessImage::from_path(&temp_path) {
+        #[cfg(windows)]
+        {
+            tess_image.cmd = "C:\\Program Files\\Tesseract-OCR\\tesseract.exe".to_string();
+        }
         rusty_tesseract::image_to_string(&tess_image, &args)
             .ok()
             .and_then(|text| parse_hunger_text(&text))
