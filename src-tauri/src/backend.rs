@@ -1,10 +1,7 @@
 use anyhow::Result;
 use chrono::{Local, Timelike};
 use directories::ProjectDirs;
-use enigo::{Button, Direction, Enigo, Key, Mouse, Settings};
-use image::{DynamicImage, RgbaImage};
 use parking_lot::RwLock;
-use rusty_tesseract::{image_to_string, Args, Image};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -290,7 +287,7 @@ impl SharedState {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 struct StateUpdate {
     stats: LifetimeStats,
     session: SessionState,
