@@ -1,11 +1,13 @@
 use anyhow::Result;
 use chrono::{Local, Timelike};
 use directories::ProjectDirs;
-use enigo::{Button, Direction, Enigo, Mouse, Settings};
-use image::RgbaImage;
+use enigo::{Button, Direction, Enigo, Key, Mouse, Settings};
+use image::{DynamicImage, RgbaImage};
 use parking_lot::RwLock;
+use rusty_tesseract::{image_to_string, Args, Image};
 use serde::{Deserialize, Serialize};
 use screenshots::Screen;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -296,6 +298,44 @@ fn count_matching_pixels(image: &RgbaImage, target: &Color, tolerance: u8) -> us
         .count()
 }
 
+fn preprocess_hunger_image(image: &RgbaImage) -> DynamicImage {
+    let mut grayscale = DynamicImage::ImageRgba8(image.clone()).to_luma8();
+    for pixel in grayscale.pixels_mut() {
+        let value = if pixel[0] > 160 { 255 } else { 0 };
+        *pixel = image::Luma([value]);
+    }
+    DynamicImage::ImageLuma8(grayscale)
+}
+
+fn parse_hunger_value(raw_text: &str) -> Result<u8> {
+    let digits: String = raw_text.chars().filter(|c| c.is_ascii_digit()).collect();
+    if digits.is_empty() {
+        anyhow::bail!("OCR returned no digits: {raw_text:?}");
+    }
+    let value: u8 = digits.parse()?;
+    Ok(value.min(100))
+}
+
+fn check_hunger(region: Region) -> Result<u8> {
+    let image = capture_region(region)?;
+    let processed = preprocess_hunger_image(&image);
+    let input = Image::from_dynamic_image(&processed)?;
+
+    let mut config_variables = HashMap::new();
+    config_variables.insert("tessedit_char_whitelist".to_string(), "0123456789".to_string());
+
+    let args = Args {
+        lang: "eng".to_string(),
+        config_variables,
+        dpi: Some(150),
+        psm: Some(7),
+        oem: Some(3),
+    };
+
+    let text = image_to_string(&input, &args)?;
+    parse_hunger_value(text.trim())
+}
+
 fn emit_session_update(window: &Window, session: &SessionState) {
     let _ = window.emit("state-update", session);
 }
@@ -501,14 +541,61 @@ pub fn start_bot(state: &SharedState, window: Window) {
             }
 
             if fish_caught {
-                let session_snapshot = {
+                let (fish_per_feed, hunger_region) = {
+                    let config = state.config.read();
+                    (config.fish_per_feed, config.hunger_region)
+                };
+                let (session_snapshot, fish_count) = {
                     let mut session = state.session.write();
                     session.fish_caught += 1;
                     session.last_action = "Fish caught!".to_string();
                     session.uptime_minutes = start_time.elapsed().as_secs() / 60;
-                    session.clone()
+                    (session.clone(), session.fish_caught)
                 };
                 emit_session_update(&window, &session_snapshot);
+
+                if fish_per_feed > 0 && fish_count % fish_per_feed as u64 == 0 {
+                    let hunger_result = check_hunger(hunger_region);
+                    match hunger_result {
+                        Ok(hunger_level) => {
+                            let session_snapshot = {
+                                let mut session = state.session.write();
+                                session.hunger_level = hunger_level;
+                                session.last_action =
+                                    format!("Hunger OCR: {hunger_level}%");
+                                session.uptime_minutes = start_time.elapsed().as_secs() / 60;
+                                session.clone()
+                            };
+                            emit_session_update(&window, &session_snapshot);
+
+                            if hunger_level < 50 {
+                                let session_snapshot = {
+                                    let mut session = state.session.write();
+                                    session.last_action = "Eating food...".to_string();
+                                    session.uptime_minutes = start_time.elapsed().as_secs() / 60;
+                                    session.clone()
+                                };
+                                emit_session_update(&window, &session_snapshot);
+
+                                let _ = input.key_click(Key::Layout('1'));
+                                thread::sleep(Duration::from_millis(300));
+                                let _ = input.key_click(Key::Layout('2'));
+                                thread::sleep(Duration::from_millis(300));
+                            }
+                        }
+                        Err(error) => {
+                            let session_snapshot = {
+                                let mut session = state.session.write();
+                                session.errors_count += 1;
+                                session.last_action =
+                                    format!("Hunger OCR failed: {error}");
+                                session.uptime_minutes = start_time.elapsed().as_secs() / 60;
+                                session.clone()
+                            };
+                            emit_session_update(&window, &session_snapshot);
+                        }
+                    }
+                }
             }
         }
 
