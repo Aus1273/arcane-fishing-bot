@@ -1,7 +1,10 @@
-use anyhow::Result;
-use chrono::{Local, Timelike};
+use anyhow::{anyhow, Result};
+use chrono::{Local, Timelike, Utc};
 use directories::ProjectDirs;
+use enigo::{Button, Direction, Enigo, Key, Keyboard, Mouse, Settings};
+use image::{DynamicImage, RgbaImage};
 use parking_lot::RwLock;
+use screenshots::Screen;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -12,6 +15,7 @@ use std::sync::{
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 use tauri::Window;
+use rusty_tesseract::{Args, Image as TessImage};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Region {
@@ -301,9 +305,88 @@ fn emit_state_update(window: &Window, state: &SharedState) {
     let _ = window.emit("state-update", payload);
 }
 
+fn capture_region(region: Region) -> Result<RgbaImage> {
+    let screens = Screen::all()?;
+    let screen = screens.first().ok_or_else(|| anyhow!("No screens found"))?;
+    let image = screen.capture_area(region.x, region.y, region.width, region.height)?;
+    RgbaImage::from_raw(region.width, region.height, image.to_vec())
+        .ok_or_else(|| anyhow!("Failed to build image buffer"))
+}
+
+fn count_matching_pixels(image: &RgbaImage, target: (u8, u8, u8), tolerance: u8) -> u32 {
+    let tolerance = tolerance as i32;
+    image
+        .pixels()
+        .filter(|pixel| {
+            let dr = (pixel[0] as i32 - target.0 as i32).abs();
+            let dg = (pixel[1] as i32 - target.1 as i32).abs();
+            let db = (pixel[2] as i32 - target.2 as i32).abs();
+            dr + dg + db <= tolerance * 3
+        })
+        .count() as u32
+}
+
+fn parse_hunger_text(text: &str) -> Option<u32> {
+    let cleaned = text
+        .trim()
+        .chars()
+        .filter(|c| c.is_ascii_digit())
+        .collect::<String>();
+    if cleaned.is_empty() {
+        return None;
+    }
+    cleaned.parse::<u32>().ok()
+}
+
+fn check_hunger_ocr(region: Region) -> Result<u32> {
+    let image = capture_region(region)?;
+    let grayscale = DynamicImage::ImageRgba8(image).grayscale();
+    let temp_path = std::env::temp_dir().join(format!(
+        "hunger_ocr_{}.png",
+        chrono::Utc::now().timestamp_millis()
+    ));
+    grayscale.save(&temp_path)?;
+
+    let mut config_variables = HashMap::new();
+    config_variables.insert(
+        "tessedit_char_whitelist".to_string(),
+        "0123456789%".to_string(),
+    );
+    let args = Args {
+        lang: "eng".to_string(),
+        dpi: Some(150),
+        psm: Some(8),
+        oem: Some(3),
+        config_variables,
+    };
+
+    let result = if let Ok(tess_image) = TessImage::from_path(&temp_path) {
+        rusty_tesseract::image_to_string(&tess_image, &args)
+            .ok()
+            .and_then(|text| parse_hunger_text(&text))
+    } else {
+        None
+    };
+
+    std::fs::remove_file(&temp_path).ok();
+    Ok(result.unwrap_or(100))
+}
+
+fn update_error_state(state: &SharedState, window: &Window, message: &str) {
+    {
+        let mut session = state.session.write();
+        session.errors_count += 1;
+        session.last_action = message.to_string();
+    }
+    emit_state_update(window, state);
+}
+
 fn worker_loop(state: SharedState, window: Window) {
     let start_time = Instant::now();
     let mut last_uptime_minutes = 0;
+    let mut enigo = Enigo::new(&Settings::default()).expect("Failed to init Enigo");
+
+    thread::sleep(Duration::from_millis(state.config.read().startup_delay_ms));
 
     loop {
         if !state.running.load(Ordering::Relaxed) {
@@ -312,7 +395,6 @@ fn worker_loop(state: SharedState, window: Window) {
 
         let elapsed = start_time.elapsed();
         let uptime_minutes = elapsed.as_secs() / 60;
-
         if uptime_minutes != last_uptime_minutes {
             {
                 let mut session = state.session.write();
@@ -327,7 +409,185 @@ fn worker_loop(state: SharedState, window: Window) {
             last_uptime_minutes = uptime_minutes;
         }
 
-        thread::sleep(Duration::from_millis(500));
+        let config = state.config.read().clone();
+        let red_region = config.red_region;
+        let yellow_region = config.yellow_region;
+        let hunger_region = config.hunger_region;
+        let detection_interval = Duration::from_millis(config.detection_interval_ms);
+        let reel_interval = Duration::from_millis(config.autoclick_interval_ms);
+        let reel_timeout = Duration::from_millis(config.max_fishing_timeout_ms);
+        let bite_timeout = config.calculate_max_bite_time();
+        let red_threshold = ((red_region.width * red_region.height) / 300).max(15) as u32;
+        let yellow_threshold = ((yellow_region.width * yellow_region.height) / 400).max(10) as u32;
+
+        {
+            let mut session = state.session.write();
+            session.last_action = "Casting line".to_string();
+        }
+        emit_state_update(&window, &state);
+
+        if enigo
+            .button(Button::Left, Direction::Click)
+            .is_err()
+        {
+            update_error_state(&state, &window, "Failed to cast");
+            thread::sleep(Duration::from_millis(200));
+            continue;
+        }
+        thread::sleep(reel_interval);
+
+        {
+            let mut session = state.session.write();
+            session.last_action = "Scanning for bite".to_string();
+        }
+        emit_state_update(&window, &state);
+
+        let bite_start = Instant::now();
+        let mut bite_detected = false;
+        while state.running.load(Ordering::Relaxed) {
+            if bite_start.elapsed() > bite_timeout {
+                {
+                    let mut session = state.session.write();
+                    session.last_action = "Bite timeout - recasting".to_string();
+                }
+                emit_state_update(&window, &state);
+                break;
+            }
+
+            match capture_region(red_region) {
+                Ok(image) => {
+                    let count = count_matching_pixels(
+                        &image,
+                        (241, 27, 28),
+                        config.color_tolerance,
+                    );
+                    if count >= red_threshold {
+                        bite_detected = true;
+                        break;
+                    }
+                }
+                Err(_) => update_error_state(&state, &window, "Red scan failed"),
+            }
+
+            thread::sleep(detection_interval);
+        }
+
+        if !bite_detected {
+            continue;
+        }
+
+        {
+            let mut session = state.session.write();
+            session.last_action = "Reeling in".to_string();
+        }
+        emit_state_update(&window, &state);
+
+        let reel_start = Instant::now();
+        let mut caught = false;
+        while state.running.load(Ordering::Relaxed) {
+            if reel_start.elapsed() > reel_timeout {
+                {
+                    let mut session = state.session.write();
+                    session.last_action = "Reel timeout".to_string();
+                }
+                emit_state_update(&window, &state);
+                break;
+            }
+
+            if enigo
+                .button(Button::Left, Direction::Click)
+                .is_err()
+            {
+                update_error_state(&state, &window, "Failed to reel" );
+            }
+
+            match capture_region(yellow_region) {
+                Ok(image) => {
+                    let count = count_matching_pixels(
+                        &image,
+                        (255, 255, 0),
+                        config.color_tolerance,
+                    );
+                    if count >= yellow_threshold {
+                        let _ = enigo.button(Button::Left, Direction::Click);
+                        thread::sleep(detection_interval);
+                        if let Ok(confirm_image) = capture_region(yellow_region) {
+                            let confirm_count = count_matching_pixels(
+                                &confirm_image,
+                                (255, 255, 0),
+                                config.color_tolerance,
+                            );
+                            if confirm_count >= yellow_threshold {
+                                caught = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                Err(_) => update_error_state(&state, &window, "Yellow scan failed"),
+            }
+
+            thread::sleep(reel_interval);
+        }
+
+        if !caught {
+            continue;
+        }
+
+        let fish_caught = {
+            let mut session = state.session.write();
+            session.fish_caught += 1;
+            session.last_action = format!("Caught fish #{}", session.fish_caught);
+            session.fish_caught
+        };
+
+        {
+            let mut stats = state.stats.write();
+            stats.total_fish_caught += 1;
+            stats.last_updated = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+            stats.best_session_fish = stats.best_session_fish.max(fish_caught);
+        }
+        emit_state_update(&window, &state);
+
+        if fish_caught % config.fish_per_feed as u64 == 0 {
+            {
+                let mut session = state.session.write();
+                session.last_action = "Checking hunger".to_string();
+            }
+            emit_state_update(&window, &state);
+
+            match check_hunger_ocr(hunger_region) {
+                Ok(hunger) => {
+                    {
+                        let mut session = state.session.write();
+                        session.hunger_level = hunger.min(100) as u8;
+                    }
+                    emit_state_update(&window, &state);
+
+                    if hunger < 50 {
+                        let _ = enigo.key(Key::Layout('1'), Direction::Click);
+                        thread::sleep(Duration::from_millis(100));
+                        let _ = enigo.button(Button::Left, Direction::Click);
+                        thread::sleep(Duration::from_millis(200));
+                        let _ = enigo.key(Key::Layout('2'), Direction::Click);
+
+                        {
+                            let mut stats = state.stats.write();
+                            stats.total_feeds += 1;
+                            stats.last_updated = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+                        }
+                        {
+                            let mut session = state.session.write();
+                            session.last_action = "Fed character".to_string();
+                        }
+                        emit_state_update(&window, &state);
+                    }
+                }
+                Err(_) => update_error_state(&state, &window, "OCR hunger check failed"),
+            }
+        }
+
+        thread::sleep(Duration::from_millis(50));
     }
 }
 
@@ -359,6 +619,11 @@ pub fn stop_bot(state: &SharedState, window: &Window) {
         let mut session = state.session.write();
         session.running = false;
         session.last_action = "Stopped".to_string();
+    }
+    {
+        let mut stats = state.stats.write();
+        stats.sessions_completed += 1;
+        stats.last_updated = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
     }
     emit_state_update(window, state);
 
