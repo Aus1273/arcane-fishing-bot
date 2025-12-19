@@ -342,6 +342,7 @@
           </div>
         </div>
 
+        {#if config}
           {#if activeSettingsTab === 'general'}
             <div class="grid lg:grid-cols-[2fr_1fr] gap-4">
               <div class="space-y-4">
@@ -362,80 +363,48 @@
                   />
                 </div>
 
-            {#if activeSettingsTab === 'general'}
-              <div class="grid lg:grid-cols-[2fr_1fr] gap-4">
-                <div class="space-y-4">
-                  <div class="border border-white/10 bg-[#1d1d1d] p-3 rounded-none space-y-2">
-                    <div class="flex items-center justify-between text-sm">
-                      <label class="text-gray-200" for="colorTolerance">Color tolerance</label>
-                      <span class="slider-value px-2 py-1 bg-[#141414] border border-white/10 rounded-none font-mono text-orange-400">
-                        {config.color_tolerance}%
-                      </span>
-                    </div>
+                <div class="grid md:grid-cols-2 gap-3">
+                  <label class="block space-y-1 text-sm" for="autoClick">
+                    <span class="text-gray-300">Auto-click (ms)</span>
                     <input
-                      id="colorTolerance"
-                      type="range"
-                      min="0"
-                      max="30"
-                      bind:value={config.color_tolerance}
-                      class="w-full accent-[#ff9a00] rounded-none"
-                    />
-                  </div>
-
-                  <div class="grid md:grid-cols-2 gap-3">
-                    <label class="block space-y-1 text-sm" for="autoClick">
-                      <span class="text-gray-300">Auto-click (ms)</span>
-                      <input
-                        id="autoClick"
-                        type="number"
-                        bind:value={config.autoclick_interval_ms}
-                        class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
-                      />
-                    </label>
-                    <label class="block space-y-1 text-sm" for="detection">
-                      <span class="text-gray-300">Detection (ms)</span>
-                      <input
-                        id="detection"
-                        type="number"
-                        bind:value={config.detection_interval_ms}
-                        class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
-                      />
-                    </label>
-                  </div>
-
-                  <div class="grid md:grid-cols-2 gap-3">
-                    <label class="block space-y-1 text-sm" for="fishPerFeed">
-                      <span class="text-gray-300">Fish per feed</span>
-                      <input
-                        id="fishPerFeed"
-                        type="number"
-                        bind:value={config.fish_per_feed}
-                        class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
-                      />
-                    </label>
-                    <label class="block space-y-1 text-sm" for="startupDelay">
-                      <span class="text-gray-300">Startup delay (ms)</span>
-                      <input
-                        id="startupDelay"
-                        type="number"
-                        bind:value={config.startup_delay_ms}
-                        class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
-                      />
-                    </label>
-                  </div>
-                </div>
-
-                <div class="space-y-3">
-                  <label class="block space-y-1 text-sm" for="webhook">
-                    <span class="text-gray-300">Webhook URL</span>
-                    <input
-                      id="webhook"
-                      type="url"
-                      bind:value={config.webhook_url}
-                      placeholder="https://discord..."
+                      id="autoClick"
+                      type="number"
+                      bind:value={config.autoclick_interval_ms}
                       class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
                     />
                   </label>
+                  <label class="block space-y-1 text-sm" for="detection">
+                    <span class="text-gray-300">Detection (ms)</span>
+                    <input
+                      id="detection"
+                      type="number"
+                      bind:value={config.detection_interval_ms}
+                      class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
+                    />
+                  </label>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-3">
+                  <label class="block space-y-1 text-sm" for="fishPerFeed">
+                    <span class="text-gray-300">Fish per feed</span>
+                    <input
+                      id="fishPerFeed"
+                      type="number"
+                      bind:value={config.fish_per_feed}
+                      class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
+                    />
+                  </label>
+                  <label class="block space-y-1 text-sm" for="startupDelay">
+                    <span class="text-gray-300">Startup delay (ms)</span>
+                    <input
+                      id="startupDelay"
+                      type="number"
+                      bind:value={config.startup_delay_ms}
+                      class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
+                    />
+                  </label>
+                </div>
+              </div>
 
               <div class="space-y-3">
                 <label class="block space-y-1 text-sm" for="webhook">
@@ -448,7 +417,6 @@
                     class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
                   />
                 </label>
-
                 <div class="border border-white/10 bg-[#1d1d1d] p-3 rounded-none space-y-2 text-sm text-gray-100">
                   <label class="flex items-center justify-between gap-3 p-2 border border-white/10 bg-[#0f0f0f] rounded-none cursor-pointer">
                     <span class="text-sm">Enable screenshots</span>
@@ -512,74 +480,30 @@
                 </label>
               </div>
 
-                  <label class="block space-y-1 text-sm" for="uiProfile">
-                    <span class="text-gray-300">GUI profile</span>
-                    <select
-                      id="uiProfile"
-                      class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
-                      bind:value={uiProfile}
-                      on:change={handleUiProfileChange}
-                    >
-                      {#each Object.keys(uiProfiles) as profile}
-                        <option value={profile}>{uiProfiles[profile].label}</option>
-                      {/each}
-                    </select>
-                    <p class="text-xs text-gray-400">Switch between Default and the pink rainbow "LGBTQ+ Pride" preset.</p>
+              <div class="space-y-3">
+                <label class="block space-y-1 text-sm" for="rodLureValue">
+                  <span class="text-gray-300">Rod lure value</span>
+                  <input
+                    id="rodLureValue"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    bind:value={config.rod_lure_value}
+                    class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
+                  />
+                  <p class="text-xs text-gray-400">Derives a ~{Math.round(config.max_fishing_timeout_ms / 1000)}s timeout.</p>
+                </label>
+
+                <div class="border border-white/10 bg-[#1d1d1d] p-3 rounded-none space-y-2 text-sm text-gray-100">
+                  <label class="flex items-center justify-between gap-3 p-2 border border-white/10 bg-[#0f0f0f] rounded-none cursor-pointer">
+                    <span class="text-sm">Auto-save config</span>
+                    <input class="rounded-none" type="checkbox" bind:checked={config.auto_save_enabled} />
                   </label>
+                  <p class="text-xs text-gray-400 px-2">Keeps your lure, timeout, and screenshot cadence synchronized with the in-game loop.</p>
                 </div>
               </div>
-            {:else if activeSettingsTab === 'automation'}
-              <div class="grid md:grid-cols-2 gap-4">
-                <div class="space-y-3">
-                  <label class="block space-y-1 text-sm" for="screenshotInterval">
-                    <span class="text-gray-300">Screenshot interval (mins)</span>
-                    <input
-                      id="screenshotInterval"
-                      type="number"
-                      min="1"
-                      bind:value={config.screenshot_interval_mins}
-                      class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
-                    />
-                  </label>
-
-                  <label class="block space-y-1 text-sm" for="maxFishingTimeout">
-                    <span class="text-gray-300">Max fishing timeout (ms)</span>
-                    <input
-                      id="maxFishingTimeout"
-                      type="number"
-                      min="0"
-                      bind:value={config.max_fishing_timeout_ms}
-                      readonly
-                      class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none opacity-80 focus:outline-none focus:border-orange-500"
-                    />
-                    <p class="text-xs text-gray-400">Tied to lure value using Arcane Odyssey bite timing math.</p>
-                  </label>
-                </div>
-
-                <div class="space-y-3">
-                  <label class="block space-y-1 text-sm" for="rodLureValue">
-                    <span class="text-gray-300">Rod lure value</span>
-                    <input
-                      id="rodLureValue"
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      bind:value={config.rod_lure_value}
-                      class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
-                    />
-                    <p class="text-xs text-gray-400">Derives a ~{Math.round(config.max_fishing_timeout_ms / 1000)}s timeout.</p>
-                  </label>
-
-                  <div class="border border-white/10 bg-[#1d1d1d] p-3 rounded-none space-y-2 text-sm text-gray-100">
-                    <label class="flex items-center justify-between gap-3 p-2 border border-white/10 bg-[#0f0f0f] rounded-none cursor-pointer">
-                      <span class="text-sm">Auto-save config</span>
-                      <input class="rounded-none" type="checkbox" bind:checked={config.auto_save_enabled} />
-                    </label>
-                    <p class="text-xs text-gray-400 px-2">Keeps your lure, timeout, and screenshot cadence synchronized with the in-game loop.</p>
-                  </div>
-                </div>
-              </div>
-            {:else}
+            </div>
+          {:else}
               <div class="space-y-4">
                 <div class="grid md:grid-cols-2 gap-3">
                   <label class="block space-y-1 text-sm" for="regionPreset">
@@ -730,7 +654,6 @@
                 </div>
               </div>
             {/if}
-          </div>
         {:else}
           <p class="text-gray-400">Loading...</p>
         {/if}
@@ -779,29 +702,29 @@
   }
 
   .app-shell :global(input[type='range']) {
-    accent-color: #000000;
+    accent-color: var(--range-accent);
   }
 
   .app-shell :global(input[type='range']::-webkit-slider-runnable-track) {
-    background: #000000;
+    background: var(--range-accent);
   }
 
   .app-shell :global(input[type='range']::-webkit-slider-thumb) {
-    background: #000000;
-    border: 1px solid #000000;
+    background: var(--range-accent);
+    border: 1px solid var(--range-accent);
   }
 
   .app-shell :global(input[type='range']::-moz-range-track) {
-    background: #000000;
+    background: var(--range-accent);
   }
 
   .app-shell :global(input[type='range']::-moz-range-thumb) {
-    background: #000000;
-    border: 1px solid #000000;
+    background: var(--range-accent);
+    border: 1px solid var(--range-accent);
   }
 
   .app-shell :global(.slider-value) {
-    color: #000000;
+    color: var(--range-accent);
   }
 
   .theme-default {
@@ -821,6 +744,7 @@
     --input-border: rgba(255, 255, 255, 0.15);
     --input-text: #ffffff;
     --input-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    --range-accent: #000000;
   }
 
   .theme-pride {
@@ -850,25 +774,28 @@
     --input-border: rgba(255, 255, 255, 0.4);
     --input-text: #ffffff;
     --input-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+    --range-accent: #0f0f0f;
   }
 
   .theme-black-mesa {
-    --app-bg: radial-gradient(circle at top left, #2b2b2b 0%, #121212 55%, #0a0a0a 100%);
-    --titlebar-bg: linear-gradient(90deg, #111111, #1f1f1f, #0f0f0f);
-    --titlebar-border: rgba(255, 140, 0, 0.5);
-    --panel-bg: linear-gradient(135deg, rgba(255, 140, 0, 0.15), rgba(0, 0, 0, 0.65));
-    --panel-border: rgba(255, 140, 0, 0.35);
-    --panel-shadow: 0 10px 26px rgba(0, 0, 0, 0.5), 0 0 18px rgba(255, 140, 0, 0.25);
-    --button-bg: linear-gradient(90deg, #ff8c00, #ff6f00, #d94e00);
-    --button-bg-hover: linear-gradient(90deg, #ffad33, #ff8a1a, #ff6a00);
-    --button-border: rgba(255, 140, 0, 0.7);
-    --button-text: #0a0a0a;
-    --button-shadow: 0 8px 18px rgba(255, 140, 0, 0.35), 0 4px 12px rgba(0, 0, 0, 0.45);
-    --button-shadow-hover: 0 10px 22px rgba(255, 140, 0, 0.5), 0 6px 14px rgba(0, 0, 0, 0.5);
-    --input-bg: rgba(12, 12, 12, 0.85);
-    --input-border: rgba(255, 140, 0, 0.45);
-    --input-text: #f2f2f2;
-    --input-shadow: inset 0 0 0 1px rgba(255, 140, 0, 0.15);
+    --app-bg: radial-gradient(circle at 12% 12%, rgba(60, 44, 28, 0.6) 0%, rgba(16, 14, 12, 0.9) 45%, #060606 100%),
+      linear-gradient(135deg, rgba(24, 16, 10, 0.9) 0%, rgba(8, 8, 8, 0.95) 100%);
+    --titlebar-bg: linear-gradient(90deg, #4a2414 0%, #a5562e 48%, #6f351c 100%);
+    --titlebar-border: rgba(255, 142, 48, 0.65);
+    --panel-bg: linear-gradient(135deg, rgba(22, 16, 12, 0.92), rgba(72, 36, 18, 0.4));
+    --panel-border: rgba(255, 150, 60, 0.28);
+    --panel-shadow: 0 12px 28px rgba(0, 0, 0, 0.55), 0 0 20px rgba(255, 144, 48, 0.18);
+    --button-bg: linear-gradient(90deg, #f5a340 0%, #f0891b 45%, #cc5b16 100%);
+    --button-bg-hover: linear-gradient(90deg, #ffc06b 0%, #ffa03c 45%, #e46a1f 100%);
+    --button-border: rgba(255, 170, 85, 0.6);
+    --button-text: #1a0d05;
+    --button-shadow: 0 10px 20px rgba(255, 143, 46, 0.28), 0 4px 12px rgba(0, 0, 0, 0.45);
+    --button-shadow-hover: 0 12px 26px rgba(255, 156, 66, 0.4), 0 6px 14px rgba(0, 0, 0, 0.55);
+    --input-bg: rgba(10, 8, 6, 0.88);
+    --input-border: rgba(255, 150, 70, 0.4);
+    --input-text: #f5efe7;
+    --input-shadow: inset 0 0 0 1px rgba(255, 145, 55, 0.12);
+    --range-accent: #f5a340;
   }
 
   .titlebar {
