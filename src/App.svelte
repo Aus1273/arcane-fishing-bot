@@ -24,6 +24,18 @@
   let resolutionPresets: Record<string, ResolutionPreset> = {};
   let unlistenStateUpdates: (() => void) | null = null;
   let timeoutRequestId = 0;
+  const uiProfileStorageKey = 'arcane-ui-profile';
+  const uiProfiles = {
+    Default: {
+      label: 'Default',
+      className: 'theme-default',
+    },
+    'LGBTQ+ Pride': {
+      label: 'LGBTQ+ Pride',
+      className: 'theme-pride',
+    },
+  };
+  let uiProfile = 'Default';
 
   const isTauri = typeof window !== 'undefined' && Boolean(window.__TAURI_IPC__);
 
@@ -34,6 +46,7 @@
     : 'border-amber-500/40 bg-amber-500/10 text-amber-100';
   $: statusDotClass = sessionRunning ? 'bg-emerald-400' : 'bg-amber-400';
   $: presetOptions = Object.keys(resolutionPresets);
+  $: themeClass = uiProfiles[uiProfile]?.className ?? uiProfiles.Default.className;
 
   function markConfigDirty() {
     configDirty = true;
@@ -100,11 +113,27 @@
     setPreset(target.value);
   }
 
+  function handleUiProfileChange(event: Event) {
+    const target = event.target as HTMLSelectElement;
+    const selectedProfile = target.value;
+    if (!uiProfiles[selectedProfile]) return;
+    uiProfile = selectedProfile;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(uiProfileStorageKey, selectedProfile);
+    }
+  }
+
   $: if (config) {
     syncTimeout(config.rod_lure_value);
   }
 
   onMount(() => {
+    if (typeof localStorage !== 'undefined') {
+      const storedProfile = localStorage.getItem(uiProfileStorageKey);
+      if (storedProfile && uiProfiles[storedProfile]) {
+        uiProfile = storedProfile;
+      }
+    }
     loadState();
     loadResolutionPresets();
 
@@ -126,7 +155,7 @@
     }
   });
 </script>
-<main class="min-h-screen bg-[#1a1a1a] text-gray-100 font-sans">
+<main class={`app-shell min-h-screen text-gray-100 font-sans ${themeClass}`}>
   <div class="titlebar">
     <div class="max-w-6xl mx-auto px-6 flex items-center justify-between h-12">
       <div class="font-semibold tracking-wide uppercase text-sm">Arcane Automation</div>
@@ -323,7 +352,7 @@
                 <div class="border border-white/10 bg-[#1d1d1d] p-3 rounded-none space-y-2">
                   <div class="flex items-center justify-between text-sm">
                     <label class="text-gray-200" for="colorTolerance">Color tolerance</label>
-                    <span class="px-2 py-1 bg-[#141414] border border-white/10 rounded-none font-mono text-orange-400">
+                    <span class="slider-value px-2 py-1 bg-[#141414] border border-white/10 rounded-none font-mono text-orange-400">
                       {config.color_tolerance}%
                     </span>
                   </div>
@@ -410,6 +439,21 @@
                     <input class="rounded-none" type="checkbox" bind:checked={config.always_on_top} />
                   </label>
                 </div>
+
+                <label class="block space-y-1 text-sm" for="uiProfile">
+                  <span class="text-gray-300">GUI profile</span>
+                  <select
+                    id="uiProfile"
+                    class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
+                    bind:value={uiProfile}
+                    on:change={handleUiProfileChange}
+                  >
+                    {#each Object.keys(uiProfiles) as profile}
+                      <option value={profile}>{uiProfiles[profile].label}</option>
+                    {/each}
+                  </select>
+                  <p class="text-xs text-gray-400">Switch between Default and the pink rainbow "LGBTQ+ Pride" preset.</p>
+                </label>
               </div>
             </div>
           {:else if activeSettingsTab === 'automation'}
@@ -623,10 +667,110 @@
 </main>
 
 <style>
+  .app-shell {
+    background: var(--app-bg);
+  }
+
+  .app-shell :global(.titlebar),
+  .app-shell :global(.border),
+  .app-shell :global([class*='border-']),
+  .app-shell :global([class*='bg-']),
+  .app-shell :global(button),
+  .app-shell :global(input),
+  .app-shell :global(select),
+  .app-shell :global(textarea) {
+    background: var(--panel-bg);
+    border-color: var(--panel-border);
+  }
+
+  .app-shell :global(button) {
+    background: var(--button-bg);
+    border-color: var(--button-border);
+    color: var(--button-text);
+  }
+
+  .app-shell :global(button:hover) {
+    background: var(--button-bg-hover);
+  }
+
+  .app-shell :global(input),
+  .app-shell :global(select),
+  .app-shell :global(textarea) {
+    background: var(--input-bg);
+    border-color: var(--input-border);
+    color: var(--input-text);
+  }
+
+  .app-shell :global(input[type='range']) {
+    accent-color: #000000;
+  }
+
+  .app-shell :global(input[type='range']::-webkit-slider-runnable-track) {
+    background: #000000;
+  }
+
+  .app-shell :global(input[type='range']::-webkit-slider-thumb) {
+    background: #000000;
+    border: 1px solid #000000;
+  }
+
+  .app-shell :global(input[type='range']::-moz-range-track) {
+    background: #000000;
+  }
+
+  .app-shell :global(input[type='range']::-moz-range-thumb) {
+    background: #000000;
+    border: 1px solid #000000;
+  }
+
+  .app-shell :global(.slider-value) {
+    color: #000000;
+  }
+
+  .theme-default {
+    --app-bg: #1a1a1a;
+    --titlebar-bg: #0f0f0f;
+    --titlebar-border: rgba(255, 255, 255, 0.1);
+    --panel-bg: #1d1d1d;
+    --panel-border: rgba(255, 255, 255, 0.1);
+    --button-bg: #1d1d1d;
+    --button-bg-hover: #2a2a2a;
+    --button-border: rgba(255, 255, 255, 0.2);
+    --button-text: #ffffff;
+    --input-bg: #0f0f0f;
+    --input-border: rgba(255, 255, 255, 0.15);
+    --input-text: #ffffff;
+  }
+
+  .theme-pride {
+    --app-bg: linear-gradient(
+      135deg,
+      #ff5fa2 0%,
+      #ff8bd1 18%,
+      #ffd1ec 35%,
+      #b6f3ff 50%,
+      #8be8ff 60%,
+      #7a9bff 75%,
+      #b274ff 90%,
+      #ff5fa2 100%
+    );
+    --titlebar-bg: linear-gradient(90deg, #ff4d9d, #ffb347, #ffee93, #7afcff, #7a9bff, #c77dff);
+    --titlebar-border: rgba(255, 255, 255, 0.35);
+    --panel-bg: linear-gradient(135deg, rgba(255, 95, 162, 0.25), rgba(122, 155, 255, 0.25));
+    --panel-border: rgba(255, 255, 255, 0.45);
+    --button-bg: linear-gradient(90deg, #ff5fa2, #ffb347, #ffee93, #7afcff, #7a9bff, #c77dff);
+    --button-bg-hover: linear-gradient(90deg, #ff7db7, #ffd479, #fff3b8, #9effff, #96b5ff, #d9a1ff);
+    --button-border: rgba(255, 255, 255, 0.6);
+    --button-text: #0f0f0f;
+    --input-bg: rgba(15, 15, 15, 0.65);
+    --input-border: rgba(255, 255, 255, 0.5);
+    --input-text: #ffffff;
+  }
+
   .titlebar {
     -webkit-app-region: drag;
-    background: #0f0f0f;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--titlebar-bg);
+    border-bottom: 1px solid var(--titlebar-border);
   }
 
   .titlebar * {
