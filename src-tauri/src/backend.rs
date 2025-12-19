@@ -6,12 +6,13 @@ use image::{DynamicImage, RgbaImage};
 use parking_lot::RwLock;
 use rusty_tesseract::{image_to_string, Args, Image};
 use serde::{Deserialize, Serialize};
-use screenshots::Screen;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::thread;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Mutex,
+};
+use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 use tauri::Window;
 
@@ -21,6 +22,22 @@ pub struct Region {
     pub y: i32,
     pub width: u32,
     pub height: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolutionPreset {
+    pub red_region: Region,
+    pub yellow_region: Region,
+    pub hunger_region: Region,
+}
+
+#[derive(Debug)]
+pub struct OcrHandler;
+
+impl OcrHandler {
+    pub fn new() -> Self {
+        Self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -115,72 +132,88 @@ impl BotConfig {
     }
 
     pub fn calculate_max_bite_time(&self) -> Duration {
-        let lure = self.rod_lure_value;
-        let multiplier = if lure <= 1.0 {
-            3.0 - 2.0 * lure
-        } else {
-            1.25 - lure / 3.0
-        };
-
-        let seconds = (multiplier * 60.0 + 5.0).clamp(10.0, 180.0);
-        Duration::from_secs_f32(seconds)
+        Duration::from_millis(calculate_timeout_ms(self.rod_lure_value))
     }
 
     pub fn get_timeout_description(&self) -> String {
-        let timeout = self.calculate_max_bite_time();
+        let timeout_ms = calculate_timeout_ms(self.rod_lure_value);
         format!(
             "Lure {:.1}: ~{:.0}s timeout",
             self.rod_lure_value,
-            timeout.as_secs_f32()
+            timeout_ms as f32 / 1000.0
         )
     }
 
     pub fn apply_resolution_preset(&mut self, preset: &str) {
-        match preset {
-            "3440x1440" => {
-                self.red_region = Region {
-                    x: 1321,
-                    y: 99,
-                    width: 768,
-                    height: 546,
-                };
-                self.yellow_region = Region {
-                    x: 3097,
-                    y: 1234,
-                    width: 342,
-                    height: 205,
-                };
-                self.hunger_region = Region {
-                    x: 274,
-                    y: 1301,
-                    width: 43,
-                    height: 36,
-                };
-            }
-            "1920x1080" => {
-                self.red_region = Region {
-                    x: 598,
-                    y: 29,
-                    width: 901,
-                    height: 477,
-                };
-                self.yellow_region = Region {
-                    x: 1649,
-                    y: 632,
-                    width: 270,
-                    height: 447,
-                };
-                self.hunger_region = Region {
-                    x: 212,
-                    y: 984,
-                    width: 21,
-                    height: 18,
-                };
-            }
-            _ => {}
+        if let Some(preset_data) = resolution_presets().get(preset) {
+            self.red_region = preset_data.red_region;
+            self.yellow_region = preset_data.yellow_region;
+            self.hunger_region = preset_data.hunger_region;
         }
         self.region_preset = preset.to_string();
     }
+}
+
+pub fn calculate_timeout_ms(lure_value: f32) -> u64 {
+    let multiplier = if lure_value <= 1.0 {
+        3.0 - 2.0 * lure_value
+    } else {
+        1.25 - lure_value / 3.0
+    };
+
+    let seconds = (multiplier * 60.0 + 5.0).clamp(10.0, 180.0);
+    (seconds * 1000.0).round() as u64
+}
+
+pub fn resolution_presets() -> HashMap<String, ResolutionPreset> {
+    let mut presets = HashMap::new();
+    presets.insert(
+        "3440x1440".to_string(),
+        ResolutionPreset {
+            red_region: Region {
+                x: 1321,
+                y: 99,
+                width: 768,
+                height: 546,
+            },
+            yellow_region: Region {
+                x: 3097,
+                y: 1234,
+                width: 342,
+                height: 205,
+            },
+            hunger_region: Region {
+                x: 274,
+                y: 1301,
+                width: 43,
+                height: 36,
+            },
+        },
+    );
+    presets.insert(
+        "1920x1080".to_string(),
+        ResolutionPreset {
+            red_region: Region {
+                x: 598,
+                y: 29,
+                width: 901,
+                height: 477,
+            },
+            yellow_region: Region {
+                x: 1649,
+                y: 632,
+                width: 270,
+                height: 447,
+            },
+            hunger_region: Region {
+                x: 212,
+                y: 984,
+                width: 21,
+                height: 18,
+            },
+        },
+    );
+    presets
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -239,379 +272,100 @@ pub struct SharedState {
     pub stats: Arc<RwLock<LifetimeStats>>,
     pub session: Arc<RwLock<SessionState>>,
     pub running: Arc<AtomicBool>,
+    pub worker_handle: Arc<Mutex<Option<JoinHandle<()>>>>,
+    pub ocr: Arc<Mutex<OcrHandler>>,
 }
 
 impl SharedState {
-    pub fn new() -> Result<Self> {
+    pub fn new(ocr: Arc<Mutex<OcrHandler>>) -> Result<Self> {
         let config = BotConfig::load()?;
         Ok(Self {
             config: Arc::new(RwLock::new(config)),
             stats: Arc::new(RwLock::new(LifetimeStats::default())),
             session: Arc::new(RwLock::new(SessionState::default())),
             running: Arc::new(AtomicBool::new(false)),
+            worker_handle: Arc::new(Mutex::new(None)),
+            ocr,
         })
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-struct Color {
-    r: u8,
-    g: u8,
-    b: u8,
+#[derive(Serialize)]
+struct StateUpdate {
+    stats: LifetimeStats,
+    session: SessionState,
 }
 
-impl Color {
-    const RED_EXCLAMATION: Color = Color {
-        r: 241,
-        g: 27,
-        b: 28,
+fn emit_state_update(window: &Window, state: &SharedState) {
+    let payload = StateUpdate {
+        stats: state.stats.read().clone(),
+        session: state.session.read().clone(),
     };
-    const YELLOW_CAUGHT: Color = Color {
-        r: 255,
-        g: 255,
-        b: 0,
-    };
+    let _ = window.emit("state-update", payload);
+}
 
-    fn distance(&self, other: &[u8]) -> u32 {
-        let dr = (self.r as i32 - other[0] as i32).unsigned_abs();
-        let dg = (self.g as i32 - other[1] as i32).unsigned_abs();
-        let db = (self.b as i32 - other[2] as i32).unsigned_abs();
-        dr + dg + db
+fn worker_loop(state: SharedState, window: Window) {
+    let start_time = Instant::now();
+    let mut last_uptime_minutes = 0;
+
+    loop {
+        if !state.running.load(Ordering::Relaxed) {
+            break;
+        }
+
+        let elapsed = start_time.elapsed();
+        let uptime_minutes = elapsed.as_secs() / 60;
+
+        if uptime_minutes != last_uptime_minutes {
+            {
+                let mut session = state.session.write();
+                session.uptime_minutes = uptime_minutes;
+            }
+            {
+                let mut stats = state.stats.write();
+                stats.total_runtime_seconds = elapsed.as_secs();
+                stats.last_updated = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+            }
+            emit_state_update(&window, &state);
+            last_uptime_minutes = uptime_minutes;
+        }
+
+        thread::sleep(Duration::from_millis(500));
     }
 }
 
-fn capture_region(region: Region) -> Result<RgbaImage> {
-    let screens = Screen::all()?;
-    if screens.is_empty() {
-        anyhow::bail!("No screens found");
-    }
-    let image = screens[0].capture_area(region.x, region.y, region.width, region.height)?;
-    RgbaImage::from_raw(region.width, region.height, image.to_vec())
-        .ok_or_else(|| anyhow::anyhow!("Failed to create image"))
-}
-
-fn count_matching_pixels(image: &RgbaImage, target: &Color, tolerance: u8) -> usize {
-    let max_distance = tolerance as u32 * 3;
-    image
-        .pixels()
-        .filter(|pixel| target.distance(&pixel.0) <= max_distance)
-        .count()
-}
-
-fn preprocess_hunger_image(image: &RgbaImage) -> DynamicImage {
-    let mut grayscale = DynamicImage::ImageRgba8(image.clone()).to_luma8();
-    for pixel in grayscale.pixels_mut() {
-        let value = if pixel[0] > 160 { 255 } else { 0 };
-        *pixel = image::Luma([value]);
-    }
-    DynamicImage::ImageLuma8(grayscale)
-}
-
-fn parse_hunger_value(raw_text: &str) -> Result<u8> {
-    let digits: String = raw_text.chars().filter(|c| c.is_ascii_digit()).collect();
-    if digits.is_empty() {
-        anyhow::bail!("OCR returned no digits: {raw_text:?}");
-    }
-    let value: u8 = digits.parse()?;
-    Ok(value.min(100))
-}
-
-fn check_hunger(region: Region) -> Result<u8> {
-    let image = capture_region(region)?;
-    let processed = preprocess_hunger_image(&image);
-    let input = Image::from_dynamic_image(&processed)?;
-
-    let mut config_variables = HashMap::new();
-    config_variables.insert("tessedit_char_whitelist".to_string(), "0123456789".to_string());
-
-    let args = Args {
-        lang: "eng".to_string(),
-        config_variables,
-        dpi: Some(150),
-        psm: Some(7),
-        oem: Some(3),
-    };
-
-    let text = image_to_string(&input, &args)?;
-    parse_hunger_value(text.trim())
-}
-
-fn emit_session_update(window: &Window, session: &SessionState) {
-    let _ = window.emit("state-update", session);
-}
-
-pub fn start_bot(state: &SharedState, window: Window) {
-    if state.running.swap(true, Ordering::Relaxed) {
-        return;
-    }
-
-    let started_action = format!(
-        "Started at {:02}:{:02}",
-        Local::now().hour(),
-        Local::now().minute()
-    );
-    let session_snapshot = {
+pub fn start_bot(state: &SharedState, window: &Window) {
+    state.running.store(true, Ordering::Relaxed);
+    {
         let mut session = state.session.write();
         session.running = true;
-        session.last_action = started_action;
-        session.clone()
-    };
-    emit_session_update(&window, &session_snapshot);
+        session.uptime_minutes = 0;
+        session.last_action = format!(
+            "Started at {:02}:{:02}",
+            Local::now().hour(),
+            Local::now().minute()
+        );
+    }
+    emit_state_update(window, state);
 
-    let state = state.clone();
-    let window = window.clone();
-    thread::spawn(move || {
-        let mut input = Enigo::new(&Settings::default())
-            .expect("failed to initialize input controller");
-        let start_time = Instant::now();
-        let startup_delay = {
-            let config = state.config.read();
-            config.startup_delay_ms
-        };
-
-        if startup_delay > 0 {
-            let session_snapshot = {
-                let mut session = state.session.write();
-                session.last_action = "Waiting for startup delay...".to_string();
-                session.clone()
-            };
-            emit_session_update(&window, &session_snapshot);
-            thread::sleep(Duration::from_millis(startup_delay));
-        }
-
-        while state.running.load(Ordering::Relaxed) {
-            let (
-                red_region,
-                yellow_region,
-                detection_interval,
-                reel_interval,
-                bite_timeout,
-                reel_timeout,
-                color_tolerance,
-            ) =
-                {
-                    let config = state.config.read();
-                    (
-                        config.red_region,
-                        config.yellow_region,
-                        Duration::from_millis(config.detection_interval_ms),
-                        Duration::from_millis(config.autoclick_interval_ms),
-                        config.calculate_max_bite_time(),
-                        Duration::from_millis(config.max_fishing_timeout_ms),
-                        config.color_tolerance,
-                    )
-                };
-
-            let session_snapshot = {
-                let mut session = state.session.write();
-                session.last_action = "Casting fishing line...".to_string();
-                session.uptime_minutes = start_time.elapsed().as_secs() / 60;
-                session.clone()
-            };
-            emit_session_update(&window, &session_snapshot);
-            let _ = input.button(Button::Left, Direction::Click);
-            thread::sleep(reel_interval);
-
-            let session_snapshot = {
-                let mut session = state.session.write();
-                session.last_action = format!(
-                    "Scanning red region for bite (x:{} y:{} w:{} h:{})",
-                    red_region.x, red_region.y, red_region.width, red_region.height
-                );
-                session.uptime_minutes = start_time.elapsed().as_secs() / 60;
-                session.clone()
-            };
-            emit_session_update(&window, &session_snapshot);
-
-            let mut bite_detected = false;
-            let bite_start = Instant::now();
-            let mut last_red_count = 0;
-            while state.running.load(Ordering::Relaxed) {
-                if bite_start.elapsed() > bite_timeout {
-                    let session_snapshot = {
-                        let mut session = state.session.write();
-                        session.last_action = "No bite detected - recasting...".to_string();
-                        session.uptime_minutes = start_time.elapsed().as_secs() / 60;
-                        session.clone()
-                    };
-                    emit_session_update(&window, &session_snapshot);
-                    break;
-                }
-
-                match capture_region(red_region) {
-                    Ok(image) => {
-                        let red_count =
-                            count_matching_pixels(&image, &Color::RED_EXCLAMATION, color_tolerance);
-                        if red_count > 0 && red_count >= last_red_count {
-                            bite_detected = true;
-                            let session_snapshot = {
-                                let mut session = state.session.write();
-                                session.last_action = "Red bite detected - reeling in...".to_string();
-                                session.uptime_minutes = start_time.elapsed().as_secs() / 60;
-                                session.clone()
-                            };
-                            emit_session_update(&window, &session_snapshot);
-                            break;
-                        }
-                        last_red_count = red_count;
-                    }
-                    Err(_) => {
-                        let session_snapshot = {
-                            let mut session = state.session.write();
-                            session.errors_count += 1;
-                            session.last_action =
-                                "Screen capture failed during bite detection.".to_string();
-                            session.uptime_minutes = start_time.elapsed().as_secs() / 60;
-                            session.clone()
-                        };
-                        emit_session_update(&window, &session_snapshot);
-                    }
-                }
-
-                thread::sleep(detection_interval);
-            }
-
-            if !state.running.load(Ordering::Relaxed) {
-                break;
-            }
-
-            if !bite_detected {
-                continue;
-            }
-
-            let session_snapshot = {
-                let mut session = state.session.write();
-                session.last_action = format!(
-                    "Reeling in catch (yellow region x:{} y:{} w:{} h:{})",
-                    yellow_region.x, yellow_region.y, yellow_region.width, yellow_region.height
-                );
-                session.uptime_minutes = start_time.elapsed().as_secs() / 60;
-                session.clone()
-            };
-            emit_session_update(&window, &session_snapshot);
-
-            let reel_start = Instant::now();
-            let mut fish_caught = false;
-            while state.running.load(Ordering::Relaxed) {
-                if reel_start.elapsed() > reel_timeout {
-                    let session_snapshot = {
-                        let mut session = state.session.write();
-                        session.last_action = "Reeling timeout - fish escaped.".to_string();
-                        session.uptime_minutes = start_time.elapsed().as_secs() / 60;
-                        session.clone()
-                    };
-                    emit_session_update(&window, &session_snapshot);
-                    break;
-                }
-
-                match capture_region(yellow_region) {
-                    Ok(image) => {
-                        let _ = input.button(Button::Left, Direction::Click);
-                        let yellow_count =
-                            count_matching_pixels(&image, &Color::YELLOW_CAUGHT, color_tolerance);
-                        if yellow_count > 0 {
-                            thread::sleep(detection_interval);
-                            if let Ok(confirm_image) = capture_region(yellow_region) {
-                                let confirm_count = count_matching_pixels(
-                                    &confirm_image,
-                                    &Color::YELLOW_CAUGHT,
-                                    color_tolerance,
-                                );
-                                if confirm_count > 0 {
-                                    fish_caught = true;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    Err(_) => {
-                        let session_snapshot = {
-                            let mut session = state.session.write();
-                            session.errors_count += 1;
-                            session.last_action =
-                                "Screen capture failed during reeling.".to_string();
-                            session.uptime_minutes = start_time.elapsed().as_secs() / 60;
-                            session.clone()
-                        };
-                        emit_session_update(&window, &session_snapshot);
-                    }
-                }
-
-                thread::sleep(reel_interval);
-            }
-
-            if fish_caught {
-                let (fish_per_feed, hunger_region) = {
-                    let config = state.config.read();
-                    (config.fish_per_feed, config.hunger_region)
-                };
-                let (session_snapshot, fish_count) = {
-                    let mut session = state.session.write();
-                    session.fish_caught += 1;
-                    session.last_action = "Fish caught!".to_string();
-                    session.uptime_minutes = start_time.elapsed().as_secs() / 60;
-                    (session.clone(), session.fish_caught)
-                };
-                emit_session_update(&window, &session_snapshot);
-
-                if fish_per_feed > 0 && fish_count % fish_per_feed as u64 == 0 {
-                    let hunger_result = check_hunger(hunger_region);
-                    match hunger_result {
-                        Ok(hunger_level) => {
-                            let session_snapshot = {
-                                let mut session = state.session.write();
-                                session.hunger_level = hunger_level;
-                                session.last_action =
-                                    format!("Hunger OCR: {hunger_level}%");
-                                session.uptime_minutes = start_time.elapsed().as_secs() / 60;
-                                session.clone()
-                            };
-                            emit_session_update(&window, &session_snapshot);
-
-                            if hunger_level < 50 {
-                                let session_snapshot = {
-                                    let mut session = state.session.write();
-                                    session.last_action = "Eating food...".to_string();
-                                    session.uptime_minutes = start_time.elapsed().as_secs() / 60;
-                                    session.clone()
-                                };
-                                emit_session_update(&window, &session_snapshot);
-
-                                let _ = input.key_click(Key::Layout('1'));
-                                thread::sleep(Duration::from_millis(300));
-                                let _ = input.key_click(Key::Layout('2'));
-                                thread::sleep(Duration::from_millis(300));
-                            }
-                        }
-                        Err(error) => {
-                            let session_snapshot = {
-                                let mut session = state.session.write();
-                                session.errors_count += 1;
-                                session.last_action =
-                                    format!("Hunger OCR failed: {error}");
-                                session.uptime_minutes = start_time.elapsed().as_secs() / 60;
-                                session.clone()
-                            };
-                            emit_session_update(&window, &session_snapshot);
-                        }
-                    }
-                }
-            }
-        }
-
-        let session_snapshot = {
-            let mut session = state.session.write();
-            session.running = false;
-            session.last_action = "Stopped".to_string();
-            session.clone()
-        };
-        emit_session_update(&window, &session_snapshot);
-    });
+    let mut handle_guard = state.worker_handle.lock().expect("worker handle lock");
+    if handle_guard.is_none() {
+        let thread_state = state.clone();
+        let thread_window = window.clone();
+        *handle_guard = Some(thread::spawn(move || worker_loop(thread_state, thread_window)));
+    }
 }
 
-pub fn stop_bot(state: &SharedState) {
+pub fn stop_bot(state: &SharedState, window: &Window) {
     state.running.store(false, Ordering::Relaxed);
-    let mut session = state.session.write();
-    session.running = false;
-    session.last_action = "Stopped".to_string();
+    {
+        let mut session = state.session.write();
+        session.running = false;
+        session.last_action = "Stopped".to_string();
+    }
+    emit_state_update(window, state);
+
+    if let Some(handle) = state.worker_handle.lock().expect("worker handle lock").take() {
+        let _ = handle.join();
+    }
 }

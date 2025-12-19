@@ -1,42 +1,31 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
   import {
+    calculateTimeout,
     getState,
+    getResolutionPresets,
     saveConfig as persistConfig,
     startSession as startBot,
     stopSession as stopBot,
     type BotConfig,
     type LifetimeStats,
+    type ResolutionPreset,
     type SessionState,
   } from './lib/ipc';
+  import { appWindow } from '@tauri-apps/api/window';
 
   let config: BotConfig | null = null;
   let stats: LifetimeStats | null = null;
   let session: SessionState | null = null;
   let status = 'Summoning arcane waters...';
-  let refreshInterval: ReturnType<typeof setInterval> | null = null;
   const settingsTabs = ['general', 'automation', 'regions'] as const;
   let activeSettingsTab: (typeof settingsTabs)[number] = 'general';
   let configDirty = false;
+  let resolutionPresets: Record<string, ResolutionPreset> = {};
+  let unlistenStateUpdates: (() => void) | null = null;
+  let timeoutRequestId = 0;
 
-  const resolutionPresets: Record<string, { red_region: { x: number; y: number; width: number; height: number }; yellow_region: { x: number; y: number; width: number; height: number }; hunger_region: { x: number; y: number; width: number; height: number } }> = {
-    '3440x1440': {
-      red_region: { x: 1321, y: 99, width: 768, height: 546 },
-      yellow_region: { x: 3097, y: 1234, width: 342, height: 205 },
-      hunger_region: { x: 274, y: 1301, width: 43, height: 36 },
-    },
-    '1920x1080': {
-      red_region: { x: 598, y: 29, width: 901, height: 477 },
-      yellow_region: { x: 1649, y: 632, width: 270, height: 447 },
-      hunger_region: { x: 212, y: 984, width: 21, height: 18 },
-    },
-  };
-
-  function calculateMaxBiteTimeMs(lureValue: number) {
-    const multiplier = lureValue <= 1 ? 3 - 2 * lureValue : 1.25 - lureValue / 3;
-    const seconds = Math.min(180, Math.max(10, multiplier * 60 + 5));
-    return Math.round(seconds * 1000);
-  }
+  const isTauri = typeof window !== 'undefined' && Boolean(window.__TAURI_IPC__);
 
   $: sessionRunning = session?.running ?? false;
   $: statusText = sessionRunning ? 'Fishing ritual active' : 'Awaiting command';
@@ -44,6 +33,7 @@
     ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-100'
     : 'border-amber-500/40 bg-amber-500/10 text-amber-100';
   $: statusDotClass = sessionRunning ? 'bg-emerald-400' : 'bg-amber-400';
+  $: presetOptions = Object.keys(resolutionPresets);
 
   function markConfigDirty() {
     configDirty = true;
@@ -60,6 +50,10 @@
     stats = state.stats;
     session = state.session;
     status = statusText;
+  }
+
+  async function loadResolutionPresets() {
+    resolutionPresets = await getResolutionPresets();
   }
 
   async function start() {
@@ -81,6 +75,15 @@
     configDirty = false;
   }
 
+  async function syncTimeout(lureValue: number) {
+    const requestId = ++timeoutRequestId;
+    const timeout = await calculateTimeout(lureValue);
+    if (!config || requestId !== timeoutRequestId) return;
+    if (config.max_fishing_timeout_ms !== timeout) {
+      config.max_fishing_timeout_ms = timeout;
+    }
+  }
+
   function setPreset(preset: string) {
     if (!config) return;
     const presetData = resolutionPresets[preset];
@@ -98,24 +101,28 @@
   }
 
   $: if (config) {
-    const derivedTimeout = calculateMaxBiteTimeMs(config.rod_lure_value);
-    if (config.max_fishing_timeout_ms !== derivedTimeout) {
-      config.max_fishing_timeout_ms = derivedTimeout;
-    }
+    syncTimeout(config.rod_lure_value);
   }
 
   onMount(() => {
     loadState();
+    loadResolutionPresets();
 
-    refreshInterval = setInterval(() => {
-      loadState({ preserveConfig: true });
-    }, 1000);
+    if (isTauri) {
+      appWindow.listen<{ stats: LifetimeStats; session: SessionState }>('state-update', (event) => {
+        stats = event.payload.stats;
+        session = event.payload.session;
+        status = statusText;
+      }).then((unlisten) => {
+        unlistenStateUpdates = unlisten;
+      });
+    }
   });
 
   onDestroy(() => {
-    if (refreshInterval) {
-      clearInterval(refreshInterval);
-      refreshInterval = null;
+    if (unlistenStateUpdates) {
+      unlistenStateUpdates();
+      unlistenStateUpdates = null;
     }
   });
 </script>
@@ -467,7 +474,7 @@
                     bind:value={config.region_preset}
                     on:change={handlePresetChange}
                   >
-                    {#each Object.keys(resolutionPresets) as preset}
+                    {#each (presetOptions.length ? presetOptions : [config.region_preset]) as preset}
                       <option value={preset}>{preset}</option>
                     {/each}
                   </select>

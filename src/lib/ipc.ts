@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/tauri';
 
 export type Region = { x: number; y: number; width: number; height: number };
+export type ResolutionPreset = { red_region: Region; yellow_region: Region; hunger_region: Region };
 
 export type BotConfig = {
   color_tolerance: number;
@@ -192,4 +193,25 @@ export async function stopSession(): Promise<void> {
   state.session.last_action = 'Session stopped';
   state.stats.sessions_completed += 1;
   state.stats.last_updated = new Date().toISOString();
+}
+
+export async function calculateTimeout(lureValue: number): Promise<number> {
+  const result = await invokeCommand<number>('calculate_timeout', { lure_value: lureValue });
+  if (result.called) return result.result;
+
+  return ensureFallbackState().config.max_fishing_timeout_ms;
+}
+
+export async function getResolutionPresets(): Promise<Record<string, ResolutionPreset>> {
+  const result = await invokeCommand<Record<string, ResolutionPreset>>('get_resolution_presets');
+  if (result.called) return result.result;
+
+  const fallback = ensureFallbackState().config;
+  return {
+    [fallback.region_preset]: {
+      red_region: fallback.red_region,
+      yellow_region: fallback.yellow_region,
+      hunger_region: fallback.hunger_region,
+    },
+  };
 }
