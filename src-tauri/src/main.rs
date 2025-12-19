@@ -11,11 +11,14 @@ fn get_config(state: State<'_, AppState>) -> BotConfig {
 }
 
 #[tauri::command]
-fn save_config(state: State<'_, AppState>, config: BotConfig) -> Result<(), String> {
+fn save_config(window: tauri::Window, state: State<'_, AppState>, config: BotConfig) -> Result<(), String> {
     {
         let mut stored = state.0.config.write();
         *stored = config.clone();
     }
+    window
+        .set_always_on_top(config.always_on_top)
+        .map_err(|e| e.to_string())?;
     config.save().map_err(|e| e.to_string())
 }
 
@@ -49,6 +52,13 @@ fn main() {
         .setup(|app| {
             let window = app.get_window("main").expect("main window");
             window.set_title("Arcane Fishing Bot")?;
+            let config = app
+                .state::<AppState>()
+                .0
+                .config
+                .read()
+                .always_on_top;
+            window.set_always_on_top(config)?;
             Ok(())
         })
         .run(tauri::generate_context!())
