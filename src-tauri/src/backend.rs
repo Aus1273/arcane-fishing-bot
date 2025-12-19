@@ -1,11 +1,17 @@
 use anyhow::Result;
 use chrono::{Local, Timelike};
 use directories::ProjectDirs;
+use enigo::{Enigo, MouseButton, MouseControllable, Settings};
+use image::RgbaImage;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
+use screenshots::Screen;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
+use std::thread;
+use std::time::{Duration, Instant};
+use tauri::Window;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Region {
@@ -230,6 +236,7 @@ pub struct SharedState {
     pub config: Arc<RwLock<BotConfig>>,
     pub stats: Arc<RwLock<LifetimeStats>>,
     pub session: Arc<RwLock<SessionState>>,
+    pub running: Arc<AtomicBool>,
 }
 
 impl SharedState {
@@ -239,21 +246,284 @@ impl SharedState {
             config: Arc::new(RwLock::new(config)),
             stats: Arc::new(RwLock::new(LifetimeStats::default())),
             session: Arc::new(RwLock::new(SessionState::default())),
+            running: Arc::new(AtomicBool::new(false)),
         })
     }
 }
 
-pub fn start_bot(state: &SharedState) {
-    let mut session = state.session.write();
-    session.running = true;
-    session.last_action = format!(
+#[derive(Debug, Clone, Copy)]
+struct Color {
+    r: u8,
+    g: u8,
+    b: u8,
+}
+
+impl Color {
+    const RED_EXCLAMATION: Color = Color {
+        r: 241,
+        g: 27,
+        b: 28,
+    };
+    const YELLOW_CAUGHT: Color = Color {
+        r: 255,
+        g: 255,
+        b: 0,
+    };
+
+    fn distance(&self, other: &[u8]) -> u32 {
+        let dr = (self.r as i32 - other[0] as i32).unsigned_abs();
+        let dg = (self.g as i32 - other[1] as i32).unsigned_abs();
+        let db = (self.b as i32 - other[2] as i32).unsigned_abs();
+        dr + dg + db
+    }
+}
+
+fn capture_region(region: Region) -> Result<RgbaImage> {
+    let screens = Screen::all()?;
+    if screens.is_empty() {
+        anyhow::bail!("No screens found");
+    }
+    let image = screens[0].capture_area(region.x, region.y, region.width, region.height)?;
+    RgbaImage::from_raw(region.width, region.height, image.to_vec())
+        .ok_or_else(|| anyhow::anyhow!("Failed to create image"))
+}
+
+fn count_matching_pixels(image: &RgbaImage, target: &Color, tolerance: u8) -> usize {
+    let max_distance = tolerance as u32 * 3;
+    image
+        .pixels()
+        .filter(|pixel| target.distance(&pixel.0) <= max_distance)
+        .count()
+}
+
+fn emit_session_update(window: &Window, session: &SessionState) {
+    let _ = window.emit("state-update", session);
+}
+
+pub fn start_bot(state: &SharedState, window: Window) {
+    if state.running.swap(true, Ordering::Relaxed) {
+        return;
+    }
+
+    let started_action = format!(
         "Started at {:02}:{:02}",
         Local::now().hour(),
         Local::now().minute()
     );
+    let session_snapshot = {
+        let mut session = state.session.write();
+        session.running = true;
+        session.last_action = started_action;
+        session.clone()
+    };
+    emit_session_update(&window, &session_snapshot);
+
+    let state = state.clone();
+    let window = window.clone();
+    thread::spawn(move || {
+        let mut input = Enigo::new(&Settings::default())
+            .expect("failed to initialize input controller");
+        let start_time = Instant::now();
+        let startup_delay = {
+            let config = state.config.read();
+            config.startup_delay_ms
+        };
+
+        if startup_delay > 0 {
+            let session_snapshot = {
+                let mut session = state.session.write();
+                session.last_action = "Waiting for startup delay...".to_string();
+                session.clone()
+            };
+            emit_session_update(&window, &session_snapshot);
+            thread::sleep(Duration::from_millis(startup_delay));
+        }
+
+        while state.running.load(Ordering::Relaxed) {
+            let (
+                red_region,
+                yellow_region,
+                detection_interval,
+                reel_interval,
+                bite_timeout,
+                reel_timeout,
+                color_tolerance,
+            ) =
+                {
+                    let config = state.config.read();
+                    (
+                        config.red_region,
+                        config.yellow_region,
+                        Duration::from_millis(config.detection_interval_ms),
+                        Duration::from_millis(config.autoclick_interval_ms),
+                        config.calculate_max_bite_time(),
+                        Duration::from_millis(config.max_fishing_timeout_ms),
+                        config.color_tolerance,
+                    )
+                };
+
+            let session_snapshot = {
+                let mut session = state.session.write();
+                session.last_action = "Casting fishing line...".to_string();
+                session.uptime_minutes = start_time.elapsed().as_secs() / 60;
+                session.clone()
+            };
+            emit_session_update(&window, &session_snapshot);
+            input.mouse_click(MouseButton::Left);
+            thread::sleep(reel_interval);
+
+            let session_snapshot = {
+                let mut session = state.session.write();
+                session.last_action = format!(
+                    "Scanning red region for bite (x:{} y:{} w:{} h:{})",
+                    red_region.x, red_region.y, red_region.width, red_region.height
+                );
+                session.uptime_minutes = start_time.elapsed().as_secs() / 60;
+                session.clone()
+            };
+            emit_session_update(&window, &session_snapshot);
+
+            let mut bite_detected = false;
+            let bite_start = Instant::now();
+            let mut last_red_count = 0;
+            while state.running.load(Ordering::Relaxed) {
+                if bite_start.elapsed() > bite_timeout {
+                    let session_snapshot = {
+                        let mut session = state.session.write();
+                        session.last_action = "No bite detected - recasting...".to_string();
+                        session.uptime_minutes = start_time.elapsed().as_secs() / 60;
+                        session.clone()
+                    };
+                    emit_session_update(&window, &session_snapshot);
+                    break;
+                }
+
+                match capture_region(red_region) {
+                    Ok(image) => {
+                        let red_count =
+                            count_matching_pixels(&image, &Color::RED_EXCLAMATION, color_tolerance);
+                        if red_count > 0 && red_count >= last_red_count {
+                            bite_detected = true;
+                            let session_snapshot = {
+                                let mut session = state.session.write();
+                                session.last_action = "Red bite detected - reeling in...".to_string();
+                                session.uptime_minutes = start_time.elapsed().as_secs() / 60;
+                                session.clone()
+                            };
+                            emit_session_update(&window, &session_snapshot);
+                            break;
+                        }
+                        last_red_count = red_count;
+                    }
+                    Err(_) => {
+                        let session_snapshot = {
+                            let mut session = state.session.write();
+                            session.errors_count += 1;
+                            session.last_action =
+                                "Screen capture failed during bite detection.".to_string();
+                            session.uptime_minutes = start_time.elapsed().as_secs() / 60;
+                            session.clone()
+                        };
+                        emit_session_update(&window, &session_snapshot);
+                    }
+                }
+
+                thread::sleep(detection_interval);
+            }
+
+            if !state.running.load(Ordering::Relaxed) {
+                break;
+            }
+
+            if !bite_detected {
+                continue;
+            }
+
+            let session_snapshot = {
+                let mut session = state.session.write();
+                session.last_action = format!(
+                    "Reeling in catch (yellow region x:{} y:{} w:{} h:{})",
+                    yellow_region.x, yellow_region.y, yellow_region.width, yellow_region.height
+                );
+                session.uptime_minutes = start_time.elapsed().as_secs() / 60;
+                session.clone()
+            };
+            emit_session_update(&window, &session_snapshot);
+
+            let reel_start = Instant::now();
+            let mut fish_caught = false;
+            while state.running.load(Ordering::Relaxed) {
+                if reel_start.elapsed() > reel_timeout {
+                    let session_snapshot = {
+                        let mut session = state.session.write();
+                        session.last_action = "Reeling timeout - fish escaped.".to_string();
+                        session.uptime_minutes = start_time.elapsed().as_secs() / 60;
+                        session.clone()
+                    };
+                    emit_session_update(&window, &session_snapshot);
+                    break;
+                }
+
+                match capture_region(yellow_region) {
+                    Ok(image) => {
+                        input.mouse_click(MouseButton::Left);
+                        let yellow_count =
+                            count_matching_pixels(&image, &Color::YELLOW_CAUGHT, color_tolerance);
+                        if yellow_count > 0 {
+                            thread::sleep(detection_interval);
+                            if let Ok(confirm_image) = capture_region(yellow_region) {
+                                let confirm_count = count_matching_pixels(
+                                    &confirm_image,
+                                    &Color::YELLOW_CAUGHT,
+                                    color_tolerance,
+                                );
+                                if confirm_count > 0 {
+                                    fish_caught = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        let session_snapshot = {
+                            let mut session = state.session.write();
+                            session.errors_count += 1;
+                            session.last_action =
+                                "Screen capture failed during reeling.".to_string();
+                            session.uptime_minutes = start_time.elapsed().as_secs() / 60;
+                            session.clone()
+                        };
+                        emit_session_update(&window, &session_snapshot);
+                    }
+                }
+
+                thread::sleep(reel_interval);
+            }
+
+            if fish_caught {
+                let session_snapshot = {
+                    let mut session = state.session.write();
+                    session.fish_caught += 1;
+                    session.last_action = "Fish caught!".to_string();
+                    session.uptime_minutes = start_time.elapsed().as_secs() / 60;
+                    session.clone()
+                };
+                emit_session_update(&window, &session_snapshot);
+            }
+        }
+
+        let session_snapshot = {
+            let mut session = state.session.write();
+            session.running = false;
+            session.last_action = "Stopped".to_string();
+            session.clone()
+        };
+        emit_session_update(&window, &session_snapshot);
+    });
 }
 
 pub fn stop_bot(state: &SharedState) {
+    state.running.store(false, Ordering::Relaxed);
     let mut session = state.session.write();
     session.running = false;
     session.last_action = "Stopped".to_string();
