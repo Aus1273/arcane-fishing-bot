@@ -342,6 +342,7 @@
           </div>
         </div>
 
+        {#if config}
           {#if activeSettingsTab === 'general'}
             <div class="grid lg:grid-cols-[2fr_1fr] gap-4">
               <div class="space-y-4">
@@ -653,7 +654,6 @@
                 </div>
               </div>
             {/if}
-          </div>
         {:else}
           <p class="text-gray-400">Loading...</p>
         {/if}
