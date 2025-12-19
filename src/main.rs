@@ -1422,7 +1422,11 @@ mod bot {
         }
 
         fn wait_for_bite(&self) -> Result<bool> {
-            let timeout = self.config.read().calculate_max_bite_time();
+            let config = self.config.read();
+            let timeout = config.calculate_max_bite_time();
+            let red_region = config.red_region;
+            let detection_interval = Duration::from_millis(config.detection_interval_ms);
+            drop(config);
             let start_time = Instant::now();
 
             self.update_status(&format!(
@@ -1438,23 +1442,26 @@ mod bot {
 
                 if self
                     .detector
-                    .detect_color(self.config.read().red_region, &Color::RED_EXCLAMATION)?
+                    .detect_color(red_region, &Color::RED_EXCLAMATION)?
                 {
                     self.update_status("🎯 Fish bite detected! Reeling in...");
                     return Ok(true);
                 }
 
-                thread::sleep(Duration::from_millis(
-                    self.config.read().detection_interval_ms,
-                ));
+                thread::sleep(detection_interval);
             }
 
             Ok(false)
         }
 
         fn reel_in_fish(&self) -> Result<bool> {
+            let config = self.config.read();
             let start_time = Instant::now();
-            let max_duration = Duration::from_millis(self.config.read().max_fishing_timeout_ms);
+            let max_duration = Duration::from_millis(config.max_fishing_timeout_ms);
+            let yellow_region = config.yellow_region;
+            let autoclick_interval = Duration::from_millis(config.autoclick_interval_ms);
+            let confirm_delay = Duration::from_millis(config.detection_interval_ms);
+            drop(config);
 
             while self.state.read().running && !self.state.read().paused {
                 if start_time.elapsed() > max_duration {
@@ -1470,18 +1477,27 @@ mod bot {
                 // Check if fish is caught
                 if self
                     .detector
-                    .detect_color(self.config.read().yellow_region, &Color::YELLOW_CAUGHT)?
+                    .detect_color(yellow_region, &Color::YELLOW_CAUGHT)?
                 {
-                    self.update_status("🎉 Fish successfully caught!");
-                    return Ok(true);
+                    if self.confirm_catch(yellow_region, confirm_delay)? {
+                        self.update_status("🎉 Fish successfully caught!");
+                        return Ok(true);
+                    }
                 }
 
-                thread::sleep(Duration::from_millis(
-                    self.config.read().autoclick_interval_ms,
-                ));
+                thread::sleep(autoclick_interval);
             }
 
             Ok(false)
+        }
+
+        fn confirm_catch(
+            &self,
+            region: config::Region,
+            confirm_delay: Duration,
+        ) -> Result<bool> {
+            thread::sleep(confirm_delay);
+            self.detector.detect_color(region, &Color::YELLOW_CAUGHT)
         }
 
         fn handle_successful_catch(&self) {
