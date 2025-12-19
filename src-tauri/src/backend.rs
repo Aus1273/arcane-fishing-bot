@@ -1,7 +1,7 @@
 use anyhow::Result;
 use chrono::{Local, Timelike};
 use directories::ProjectDirs;
-use enigo::{Enigo, MouseButton, MouseControllable, Settings};
+use enigo::{Button, Direction, Enigo, Mouse, Settings};
 use image::RgbaImage;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -369,7 +369,7 @@ pub fn start_bot(state: &SharedState, window: Window) {
                 session.clone()
             };
             emit_session_update(&window, &session_snapshot);
-            input.mouse_click(MouseButton::Left);
+            let _ = input.button(Button::Left, Direction::Click);
             thread::sleep(reel_interval);
 
             let session_snapshot = {
@@ -466,7 +466,7 @@ pub fn start_bot(state: &SharedState, window: Window) {
 
                 match capture_region(yellow_region) {
                     Ok(image) => {
-                        input.mouse_click(MouseButton::Left);
+                        let _ = input.button(Button::Left, Direction::Click);
                         let yellow_count =
                             count_matching_pixels(&image, &Color::YELLOW_CAUGHT, color_tolerance);
                         if yellow_count > 0 {
