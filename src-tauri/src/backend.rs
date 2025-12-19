@@ -360,11 +360,7 @@ fn check_hunger_ocr(region: Region) -> Result<u32> {
         config_variables,
     };
 
-    let result = if let Ok(mut tess_image) = TessImage::from_path(&temp_path) {
-        #[cfg(windows)]
-        {
-            tess_image.cmd = "C:\\Program Files\\Tesseract-OCR\\tesseract.exe".to_string();
-        }
+    let result = if let Ok(tess_image) = TessImage::from_path(&temp_path) {
         rusty_tesseract::image_to_string(&tess_image, &args)
             .ok()
             .and_then(|text| parse_hunger_text(&text))
@@ -569,11 +565,11 @@ fn worker_loop(state: SharedState, window: Window) {
                     emit_state_update(&window, &state);
 
                     if hunger < 50 {
-                        let _ = enigo.key(Key::Layout('1'), Direction::Click);
+                        let _ = enigo.key(Key::Unicode('1'), Direction::Click);
                         thread::sleep(Duration::from_millis(100));
                         let _ = enigo.button(Button::Left, Direction::Click);
                         thread::sleep(Duration::from_millis(200));
-                        let _ = enigo.key(Key::Layout('2'), Direction::Click);
+                        let _ = enigo.key(Key::Unicode('2'), Direction::Click);
 
                         {
                             let mut stats = state.stats.write();
