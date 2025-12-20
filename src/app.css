@@ -1,21 +1,81 @@
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Inter:wght@400;500;600&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: dark;
-}
+@layer base {
+  :root {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 6%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 6%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 96%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 96%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 48%;
+    --radius: 0.75rem;
+    color-scheme: dark;
+  }
 
-body {
-  @apply bg-obsidian text-mist font-body min-h-screen;
-}
+  .theme-pride {
+    --background: 322 48% 12%;
+    --foreground: 330 38% 96%;
+    --card: 318 44% 16%;
+    --card-foreground: 330 38% 96%;
+    --popover: 318 44% 16%;
+    --popover-foreground: 330 38% 96%;
+    --primary: 290 72% 65%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 198 70% 26%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 275 35% 24%;
+    --muted-foreground: 330 24% 70%;
+    --accent: 45 90% 55%;
+    --accent-foreground: 0 0% 10%;
+    --destructive: 0 78% 46%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 320 30% 35%;
+    --input: 320 30% 35%;
+    --ring: 290 72% 65%;
+  }
 
-.glow-card {
-  @apply bg-gradient-to-br from-obsidian via-[#0f1324] to-[#0b0d16] border border-[#1f2233] shadow-[0_0_30px_rgba(124,58,237,0.15)] rounded-2xl p-6 backdrop-blur;
-}
+  .theme-black-mesa {
+    --background: 18 26% 6%;
+    --foreground: 30 20% 94%;
+    --card: 18 28% 8%;
+    --card-foreground: 30 20% 94%;
+    --popover: 18 28% 8%;
+    --popover-foreground: 30 20% 94%;
+    --primary: 28 84% 56%;
+    --primary-foreground: 18 26% 8%;
+    --secondary: 20 28% 15%;
+    --secondary-foreground: 30 20% 94%;
+    --muted: 20 24% 14%;
+    --muted-foreground: 28 18% 70%;
+    --accent: 35 70% 45%;
+    --accent-foreground: 20 20% 12%;
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 30 20% 94%;
+    --border: 24 22% 22%;
+    --input: 24 22% 22%;
+    --ring: 28 84% 56%;
+  }
 
-.rune-accent {
-  @apply text-rune drop-shadow-[0_0_10px_rgba(124,58,237,0.35)];
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
 }
