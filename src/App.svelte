@@ -19,6 +19,11 @@
   let session: SessionState | null = null;
   let status = 'Summoning arcane waters...';
   const settingsTabs = ['general', 'automation', 'regions'] as const;
+  const settingsTabLabels: Record<(typeof settingsTabs)[number], string> = {
+    general: 'General',
+    automation: 'Automation',
+    regions: 'Regions',
+  };
   let activeSettingsTab: (typeof settingsTabs)[number] = 'general';
   let configDirty = false;
   let resolutionPresets: Record<string, ResolutionPreset> = {};
@@ -356,6 +361,22 @@
         </div>
 
         {#if config}
+          <div class="flex flex-wrap gap-2 text-sm">
+            {#each settingsTabs as tab}
+              <button
+                type="button"
+                class={`px-3 py-2 border font-semibold uppercase tracking-wide rounded-none ${
+                  activeSettingsTab === tab
+                    ? 'border-orange-500 bg-orange-600 text-black'
+                    : 'border-white/20 bg-[#1d1d1d] text-white hover:bg-[#242424]'
+                }`}
+                on:click={() => (activeSettingsTab = tab)}
+              >
+                {settingsTabLabels[tab]}
+              </button>
+            {/each}
+          </div>
+
           {#if activeSettingsTab === 'general'}
             <div class="grid lg:grid-cols-[2fr_1fr] gap-4">
               <div class="space-y-4">
