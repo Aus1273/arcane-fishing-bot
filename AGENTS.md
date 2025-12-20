@@ -6,10 +6,6 @@ This is a Rust-powered desktop automation tool for the game "Arcane Odyssey". It
 ## 🛑 STRICT RULES (DO NOT IGNORE)
 1. **NO ELECTRON:** This project uses TAURI. Do not suggest or import Electron packages.
 2. **NO TAURI V2:** This project uses Tauri v1 (stable). Do not use `frontendDist`, use `distDir`.
-3. **NO FANTASY UI:** The design language is strictly "Industrial / Sci-Fi / Black Mesa".
-   - NO rounded corners (`rounded-none`).
-   - NO gradients or "glassmorphism".
-   - Colors: `#ff9a00` (Orange) and `#1a1a1a` (Dark Grey).
 
 ## Technical Stack
 - **Backend:** Rust (Tauri commands)
