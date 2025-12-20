@@ -13,11 +13,19 @@
     type SessionState,
   } from './lib/ipc';
   import { appWindow } from '@tauri-apps/api/window';
+  import Badge from './lib/components/ui/badge.svelte';
+  import Button from './lib/components/ui/button.svelte';
+  import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './lib/components/ui/card';
+  import Input from './lib/components/ui/input.svelte';
+  import Label from './lib/components/ui/label.svelte';
+  import Select from './lib/components/ui/select.svelte';
+  import Switch from './lib/components/ui/switch.svelte';
+  import { Tabs, TabsContent, TabsList, TabsTrigger } from './lib/components/ui/tabs';
 
   let config: BotConfig | null = null;
   let stats: LifetimeStats | null = null;
   let session: SessionState | null = null;
-  let status = 'Summoning arcane waters...';
+  let status = 'Initializing...';
   const settingsTabs = ['general', 'automation', 'regions'] as const;
   const settingsTabLabels: Record<(typeof settingsTabs)[number], string> = {
     general: 'General',
@@ -34,7 +42,7 @@
   const uiProfiles = {
     Default: {
       label: 'Default',
-      className: 'theme-default',
+      className: '',
     },
     'LGBTQ+ Pride': {
       label: 'LGBTQ+ Pride',
@@ -51,10 +59,8 @@
   const isTauri = typeof window !== 'undefined' && Boolean(window.__TAURI_IPC__);
 
   $: sessionRunning = session?.running ?? false;
-  $: statusText = sessionRunning ? 'Fishing ritual active' : 'Awaiting command';
-  $: statusPillClass = sessionRunning
-    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-100'
-    : 'border-amber-500/40 bg-amber-500/10 text-amber-100';
+  $: statusText = sessionRunning ? 'Session running' : 'Session idle';
+  $: statusBadgeVariant = sessionRunning ? 'success' : 'warning';
   $: statusDotClass = sessionRunning ? 'bg-emerald-400' : 'bg-amber-400';
   $: presetOptions = Object.keys(resolutionPresets);
   $: themeClass = uiProfiles[uiProfile]?.className ?? uiProfiles.Default.className;
@@ -82,13 +88,13 @@
 
   async function start() {
     await startBot();
-    status = 'Fishing cycle engaged';
+    status = 'Session started';
     await loadState({ preserveConfig: true });
   }
 
   async function stop() {
     await stopBot();
-    status = 'Ritual paused';
+    status = 'Session stopped';
     await loadState({ preserveConfig: true });
   }
 
@@ -117,6 +123,7 @@
       config.yellow_region = { ...presetData.yellow_region };
       config.hunger_region = { ...presetData.hunger_region };
     }
+    markConfigDirty();
   }
 
   function handlePresetChange(event: Event) {
@@ -177,672 +184,438 @@
     }
   });
 </script>
-<main class={`app-shell min-h-screen text-gray-100 font-sans ${themeClass}`}>
-  <div class="titlebar">
-    <div class="max-w-6xl mx-auto px-6 flex items-center justify-between h-12">
-      <div class="font-semibold tracking-wide uppercase text-sm">Arcane Automation</div>
+
+<main class={`min-h-screen bg-background text-foreground ${themeClass}`}>
+  <div class="titlebar border-b border-border/60 bg-card/90">
+    <div class="mx-auto flex h-12 max-w-6xl items-center justify-between px-6">
+      <div class="titlebar-drag text-sm font-semibold uppercase tracking-wide">Arcane Automation</div>
       <div class="flex items-center gap-4">
-        <label class="flex items-center gap-2 text-xs uppercase tracking-wide text-gray-300">
+        <div class="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
           <span>Simple</span>
-          <input type="checkbox" class="rounded-none" bind:checked={simpleView} on:change={handleSimpleViewToggle} />
-        </label>
+          <Switch bind:checked={simpleView} on:change={handleSimpleViewToggle} />
+        </div>
         <div class="titlebar-controls" aria-label="window controls">
-          <div class="control-dot bg-gray-500"></div>
-          <div class="control-dot bg-gray-300"></div>
-          <div class="control-dot bg-orange-500"></div>
+          <div class="control-dot"></div>
+          <div class="control-dot"></div>
+          <div class="control-dot"></div>
         </div>
       </div>
     </div>
   </div>
 
-  <div class="max-w-6xl mx-auto px-6 py-8 space-y-6">
-    <section class={`grid gap-4 ${simpleView ? '' : 'lg:grid-cols-[2fr_1fr]'}`}>
-      <div class="border border-white/10 bg-[#141414] p-4 rounded-none space-y-4">
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+  <div class="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-8">
+    <section class={`grid gap-6 ${simpleView ? '' : 'lg:grid-cols-[2fr_1fr]'}`}>
+      <Card class="border-border/70 bg-card/90">
+        <CardHeader class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div class="space-y-1">
-            <p class="text-xs uppercase tracking-[0.25em] text-gray-400">Live Session</p>
-            <div class="flex items-center gap-2">
-              <h1 class="text-2xl font-semibold">Session Statistics</h1>
-              <span class={`px-3 py-1 border text-xs font-semibold uppercase rounded-none ${statusPillClass}`}>
-                {statusText}
-              </span>
+            <p class="text-xs uppercase tracking-[0.25em] text-muted-foreground">Live session</p>
+            <div class="flex flex-wrap items-center gap-2">
+              <CardTitle>Session statistics</CardTitle>
+              <Badge variant={statusBadgeVariant}>{statusText}</Badge>
             </div>
           </div>
-          <div class="flex items-center gap-3 text-sm">
-            <span class={`inline-flex h-2.5 w-2.5 rounded-none ${statusDotClass}`}></span>
-            <span class="font-medium">{status}</span>
+          <div class="flex items-center gap-3 text-sm text-muted-foreground">
+            <span class={`inline-flex h-2.5 w-2.5 rounded-full ${statusDotClass}`}></span>
+            <span class="font-medium text-foreground">{status}</span>
           </div>
-        </div>
-
-        <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <div class="border border-white/10 bg-[#1d1d1d] p-3 rounded-none space-y-1">
-            <p class="text-xs uppercase tracking-wide text-gray-400">Total Catch</p>
-            <p class="text-lg font-semibold text-orange-400">Session</p>
-            <p class="text-3xl font-mono text-white">{session?.fish_caught ?? 0}</p>
-          </div>
-          <div class="border border-white/10 bg-[#1d1d1d] p-3 rounded-none space-y-1">
-            <p class="text-xs uppercase tracking-wide text-gray-400">Runtime</p>
-            <p class="text-lg font-semibold text-orange-400">Active</p>
-            <p class="text-3xl font-mono text-white">{session?.uptime_minutes ?? 0} min</p>
-          </div>
-          <div class="border border-white/10 bg-[#1d1d1d] p-3 rounded-none space-y-1">
-            <p class="text-xs uppercase tracking-wide text-gray-400">Errors</p>
-            <p class="text-lg font-semibold text-orange-400">Count</p>
-            <p class="text-3xl font-mono text-white">{session?.errors_count ?? 0}</p>
-          </div>
-          <div class="border border-white/10 bg-[#1d1d1d] p-3 rounded-none space-y-1">
-            <p class="text-xs uppercase tracking-wide text-gray-400">Hunger Status</p>
-            <p class="text-lg font-semibold text-orange-400">Current</p>
-            <p class="text-3xl font-mono text-white">{session?.hunger_level ?? 100}%</p>
-          </div>
-          <div class="border border-white/10 bg-[#1d1d1d] p-3 rounded-none space-y-2 sm:col-span-2 lg:col-span-4">
-            <p class="text-xs uppercase tracking-wide text-gray-400">Cycle step</p>
-            <p class="text-lg font-semibold text-emerald-400">{session?.last_action || 'Awaiting command'}</p>
-          </div>
-        </div>
-
-        {#if !simpleView}
-          <div class="grid md:grid-cols-2 gap-3">
-            <div class="border border-white/10 bg-[#121212] p-3 rounded-none space-y-3">
-              <h3 class="text-sm font-semibold uppercase tracking-wide">Activity Log</h3>
-              <ul class="space-y-2 text-sm">
-                <li class="flex items-start gap-3">
-                  <div class="h-3 w-3 bg-orange-500 rounded-none mt-1"></div>
-                  <div class="space-y-1">
-                    <p class="font-semibold">Webhook</p>
-                    <p class="text-gray-400 break-all">{config?.webhook_url || 'Not configured'}</p>
-                  </div>
-                </li>
-                <li class="flex items-start gap-3">
-                  <div class="h-3 w-3 bg-green-500 rounded-none mt-1"></div>
-                  <div class="space-y-1">
-                    <p class="font-semibold">Failsafe</p>
-                    <p class="text-gray-400">{config?.failsafe_enabled ? 'Enabled' : 'Disabled'}</p>
-                  </div>
-                </li>
-                <li class="flex items-start gap-3">
-                  <div class="h-3 w-3 bg-yellow-400 rounded-none mt-1"></div>
-                  <div class="space-y-1">
-                    <p class="font-semibold">Screenshots</p>
-                    <p class="text-gray-400">{config?.screenshot_enabled ? 'Enabled' : 'Disabled'}</p>
-                  </div>
-                </li>
-              </ul>
+        </CardHeader>
+        <CardContent class="space-y-6">
+          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div class="rounded-md border border-border/70 bg-muted/20 p-4 space-y-1">
+              <p class="text-xs uppercase tracking-wide text-muted-foreground">Total catch</p>
+              <p class="text-lg font-semibold text-primary">Session</p>
+              <p class="text-3xl font-mono text-foreground">{session?.fish_caught ?? 0}</p>
             </div>
-
-            <div class="border border-white/10 bg-[#121212] p-3 rounded-none space-y-3">
-              <h3 class="text-sm font-semibold uppercase tracking-wide">Lifetime Metrics</h3>
-              <dl class="grid grid-cols-2 gap-3 text-sm">
-                <div class="border border-white/10 bg-[#1a1a1a] p-3 rounded-none">
-                  <dt class="text-gray-400 text-xs uppercase tracking-wide">Total Catch</dt>
-                  <dd class="text-xl font-mono">{stats?.total_fish_caught ?? 0}</dd>
-                </div>
-                <div class="border border-white/10 bg-[#1a1a1a] p-3 rounded-none">
-                  <dt class="text-gray-400 text-xs uppercase tracking-wide">Runtime (s)</dt>
-                  <dd class="text-xl font-mono">{stats?.total_runtime_seconds ?? 0}</dd>
-                </div>
-                <div class="border border-white/10 bg-[#1a1a1a] p-3 rounded-none">
-                  <dt class="text-gray-400 text-xs uppercase tracking-wide">Best Session</dt>
-                  <dd class="text-xl font-mono">{stats?.best_session_fish ?? 0}</dd>
-                </div>
-                <div class="border border-white/10 bg-[#1a1a1a] p-3 rounded-none">
-                  <dt class="text-gray-400 text-xs uppercase tracking-wide">Avg Catch / hr</dt>
-                  <dd class="text-xl font-mono">{stats?.average_fish_per_hour ?? 0}</dd>
-                </div>
-              </dl>
+            <div class="rounded-md border border-border/70 bg-muted/20 p-4 space-y-1">
+              <p class="text-xs uppercase tracking-wide text-muted-foreground">Runtime</p>
+              <p class="text-lg font-semibold text-primary">Active</p>
+              <p class="text-3xl font-mono text-foreground">{session?.uptime_minutes ?? 0} min</p>
+            </div>
+            <div class="rounded-md border border-border/70 bg-muted/20 p-4 space-y-1">
+              <p class="text-xs uppercase tracking-wide text-muted-foreground">Errors</p>
+              <p class="text-lg font-semibold text-primary">Count</p>
+              <p class="text-3xl font-mono text-foreground">{session?.errors_count ?? 0}</p>
+            </div>
+            <div class="rounded-md border border-border/70 bg-muted/20 p-4 space-y-1">
+              <p class="text-xs uppercase tracking-wide text-muted-foreground">Hunger status</p>
+              <p class="text-lg font-semibold text-primary">Current</p>
+              <p class="text-3xl font-mono text-foreground">{session?.hunger_level ?? 100}%</p>
+            </div>
+            <div class="rounded-md border border-border/70 bg-muted/30 p-4 space-y-2 sm:col-span-2 lg:col-span-4">
+              <p class="text-xs uppercase tracking-wide text-muted-foreground">Cycle step</p>
+              <p class="text-lg font-semibold text-emerald-200">{session?.last_action || 'Awaiting command'}</p>
             </div>
           </div>
-        {/if}
-      </div>
 
-      <aside class="border border-white/10 bg-[#141414] p-4 rounded-none space-y-4">
-        <div class="flex items-center justify-between">
+          {#if !simpleView}
+            <div class="grid gap-4 md:grid-cols-2">
+              <div class="rounded-md border border-border/70 bg-muted/20 p-4 space-y-3">
+                <h3 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Activity log</h3>
+                <ul class="space-y-2 text-sm">
+                  <li class="flex items-start gap-3">
+                    <div class="mt-1 h-2.5 w-2.5 rounded-full bg-primary"></div>
+                    <div class="space-y-1">
+                      <p class="font-semibold">Webhook</p>
+                      <p class="break-all text-muted-foreground">{config?.webhook_url || 'Not configured'}</p>
+                    </div>
+                  </li>
+                  <li class="flex items-start gap-3">
+                    <div class="mt-1 h-2.5 w-2.5 rounded-full bg-emerald-400"></div>
+                    <div class="space-y-1">
+                      <p class="font-semibold">Failsafe</p>
+                      <p class="text-muted-foreground">{config?.failsafe_enabled ? 'Enabled' : 'Disabled'}</p>
+                    </div>
+                  </li>
+                  <li class="flex items-start gap-3">
+                    <div class="mt-1 h-2.5 w-2.5 rounded-full bg-amber-300"></div>
+                    <div class="space-y-1">
+                      <p class="font-semibold">Screenshots</p>
+                      <p class="text-muted-foreground">{config?.screenshot_enabled ? 'Enabled' : 'Disabled'}</p>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+
+              <div class="rounded-md border border-border/70 bg-muted/20 p-4 space-y-3">
+                <h3 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Lifetime metrics</h3>
+                <dl class="grid grid-cols-2 gap-3 text-sm">
+                  <div class="rounded-md border border-border/70 bg-background/40 p-3">
+                    <dt class="text-xs uppercase tracking-wide text-muted-foreground">Total catch</dt>
+                    <dd class="text-xl font-mono">{stats?.total_fish_caught ?? 0}</dd>
+                  </div>
+                  <div class="rounded-md border border-border/70 bg-background/40 p-3">
+                    <dt class="text-xs uppercase tracking-wide text-muted-foreground">Runtime (s)</dt>
+                    <dd class="text-xl font-mono">{stats?.total_runtime_seconds ?? 0}</dd>
+                  </div>
+                  <div class="rounded-md border border-border/70 bg-background/40 p-3">
+                    <dt class="text-xs uppercase tracking-wide text-muted-foreground">Best session</dt>
+                    <dd class="text-xl font-mono">{stats?.best_session_fish ?? 0}</dd>
+                  </div>
+                  <div class="rounded-md border border-border/70 bg-background/40 p-3">
+                    <dt class="text-xs uppercase tracking-wide text-muted-foreground">Avg catch / hr</dt>
+                    <dd class="text-xl font-mono">{stats?.average_fish_per_hour ?? 0}</dd>
+                  </div>
+                </dl>
+              </div>
+            </div>
+          {/if}
+        </CardContent>
+      </Card>
+
+      <Card class="border-border/70 bg-card/90">
+        <CardHeader class="flex flex-row items-center justify-between">
           <div class="space-y-1">
-            <p class="text-xs uppercase tracking-[0.25em] text-gray-400">Control</p>
-            <p class="text-lg font-semibold">Session Control</p>
+            <p class="text-xs uppercase tracking-[0.25em] text-muted-foreground">Control</p>
+            <CardTitle>Session control</CardTitle>
           </div>
-          <div class="flex gap-2">
-            <button
-              class="px-4 py-2 bg-green-600 border border-green-500 text-white font-semibold rounded-none hover:bg-green-500"
-              on:click={start}
-            >
-              Start Session
-            </button>
-            <button
-              class="px-4 py-2 bg-red-600 border border-red-500 text-white font-semibold rounded-none hover:bg-red-500"
-              on:click={stop}
-            >
-              Stop Session
-            </button>
+          <div class="flex flex-wrap gap-2">
+            <Button class="bg-emerald-500 text-emerald-950 hover:bg-emerald-400" on:click={start}>Start session</Button>
+            <Button variant="destructive" on:click={stop}>Stop session</Button>
           </div>
-        </div>
-
+        </CardHeader>
         {#if !simpleView}
-          <div class="border border-white/10 bg-[#1d1d1d] p-3 rounded-none space-y-2 text-sm">
-            <p class="flex items-center justify-between">
-              <span class="text-gray-300">Auto-click</span>
-              <span class="font-mono text-orange-400">{config?.autoclick_interval_ms ?? 0} ms</span>
-            </p>
-            <p class="flex items-center justify-between">
-              <span class="text-gray-300">Detection cadence</span>
-              <span class="font-mono text-orange-400">{config?.detection_interval_ms ?? 0} ms</span>
-            </p>
-            <p class="flex items-center justify-between">
-              <span class="text-gray-300">Feed interval</span>
-              <span class="font-mono text-orange-400">{config?.fish_per_feed ?? 0}</span>
-            </p>
-            <p class="flex items-center justify-between">
-              <span class="text-gray-300">Color tolerance</span>
-              <span class="font-mono text-orange-400">{config?.color_tolerance ?? 0}%</span>
-            </p>
-          </div>
+          <CardContent class="space-y-2 text-sm">
+            <div class="flex items-center justify-between text-muted-foreground">
+              <span>Auto-click</span>
+              <span class="font-mono text-foreground">{config?.autoclick_interval_ms ?? 0} ms</span>
+            </div>
+            <div class="flex items-center justify-between text-muted-foreground">
+              <span>Detection cadence</span>
+              <span class="font-mono text-foreground">{config?.detection_interval_ms ?? 0} ms</span>
+            </div>
+            <div class="flex items-center justify-between text-muted-foreground">
+              <span>Feed interval</span>
+              <span class="font-mono text-foreground">{config?.fish_per_feed ?? 0}</span>
+            </div>
+            <div class="flex items-center justify-between text-muted-foreground">
+              <span>Color tolerance</span>
+              <span class="font-mono text-foreground">{config?.color_tolerance ?? 0}%</span>
+            </div>
+          </CardContent>
         {/if}
-      </aside>
+      </Card>
     </section>
 
     {#if !simpleView}
-      <section class="border border-white/10 bg-[#141414] p-4 rounded-none space-y-4">
-        <div class="flex items-center justify-between">
-          <div class="space-y-1">
-            <p class="text-xs uppercase tracking-[0.25em] text-gray-400">Preferences</p>
-            <h2 class="text-xl font-semibold">Settings & Configuration</h2>
-          </div>
-          <div class="flex gap-2 text-sm">
-            <button class="px-4 py-2 border border-white/20 bg-[#1d1d1d] text-white font-semibold rounded-none" on:click={loadState}>
-              Reset
-            </button>
-            <button
-              class="px-4 py-2 border border-orange-500 bg-orange-600 text-black font-semibold rounded-none hover:bg-orange-500"
-              on:click={saveConfig}
-            >
-              Save
-            </button>
-          </div>
-        </div>
-
-        {#if config}
-          <div class="flex flex-wrap gap-2 text-sm">
-            {#each settingsTabs as tab}
-              <button
-                type="button"
-                class={`px-3 py-2 border font-semibold uppercase tracking-wide rounded-none ${
-                  activeSettingsTab === tab
-                    ? 'border-orange-500 bg-orange-600 text-black'
-                    : 'border-white/20 bg-[#1d1d1d] text-white hover:bg-[#242424]'
-                }`}
-                on:click={() => (activeSettingsTab = tab)}
-              >
-                {settingsTabLabels[tab]}
-              </button>
-            {/each}
-          </div>
-
-          {#if activeSettingsTab === 'general'}
-            <div class="grid lg:grid-cols-[2fr_1fr] gap-4">
-              <div class="space-y-4">
-                <div class="border border-white/10 bg-[#1d1d1d] p-3 rounded-none space-y-2">
-                  <div class="flex items-center justify-between text-sm">
-                    <label class="text-gray-200" for="colorTolerance">Color tolerance</label>
-                    <span class="slider-value px-2 py-1 bg-[#141414] border border-white/10 rounded-none font-mono text-orange-400">
-                      {config.color_tolerance}%
-                    </span>
-                  </div>
-                  <input
-                    id="colorTolerance"
-                    type="range"
-                    min="0"
-                    max="30"
-                    bind:value={config.color_tolerance}
-                    class="w-full accent-[#ff9a00] rounded-none"
-                  />
-                </div>
-
-                <div class="grid md:grid-cols-2 gap-3">
-                  <label class="block space-y-1 text-sm" for="autoClick">
-                    <span class="text-gray-300">Auto-click (ms)</span>
-                    <input
-                      id="autoClick"
-                      type="number"
-                      bind:value={config.autoclick_interval_ms}
-                      class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
-                    />
-                  </label>
-                  <label class="block space-y-1 text-sm" for="detection">
-                    <span class="text-gray-300">Detection (ms)</span>
-                    <input
-                      id="detection"
-                      type="number"
-                      bind:value={config.detection_interval_ms}
-                      class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
-                    />
-                  </label>
-                </div>
-
-                <div class="grid md:grid-cols-2 gap-3">
-                  <label class="block space-y-1 text-sm" for="fishPerFeed">
-                    <span class="text-gray-300">Fish per feed</span>
-                    <input
-                      id="fishPerFeed"
-                      type="number"
-                      bind:value={config.fish_per_feed}
-                      class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
-                    />
-                  </label>
-                  <label class="block space-y-1 text-sm" for="startupDelay">
-                    <span class="text-gray-300">Startup delay (ms)</span>
-                    <input
-                      id="startupDelay"
-                      type="number"
-                      bind:value={config.startup_delay_ms}
-                      class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
-                    />
-                  </label>
-                </div>
-              </div>
-
-              <div class="space-y-3">
-                <label class="block space-y-1 text-sm" for="webhook">
-                  <span class="text-gray-300">Webhook URL</span>
-                  <input
-                    id="webhook"
-                    type="url"
-                    bind:value={config.webhook_url}
-                    placeholder="https://discord..."
-                    class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
-                  />
-                </label>
-                <div class="border border-white/10 bg-[#1d1d1d] p-3 rounded-none space-y-2 text-sm text-gray-100">
-                  <label class="flex items-center justify-between gap-3 p-2 border border-white/10 bg-[#0f0f0f] rounded-none cursor-pointer">
-                    <span class="text-sm">Enable screenshots</span>
-                    <input class="rounded-none" type="checkbox" bind:checked={config.screenshot_enabled} />
-                  </label>
-                  <label class="flex items-center justify-between gap-3 p-2 border border-white/10 bg-[#0f0f0f] rounded-none cursor-pointer">
-                    <span class="text-sm">Enable failsafe</span>
-                    <input class="rounded-none" type="checkbox" bind:checked={config.failsafe_enabled} />
-                  </label>
-                  <label class="flex items-center justify-between gap-3 p-2 border border-white/10 bg-[#0f0f0f] rounded-none cursor-pointer">
-                    <span class="text-sm">Advanced detection</span>
-                    <input class="rounded-none" type="checkbox" bind:checked={config.advanced_detection} />
-                  </label>
-                  <label class="flex items-center justify-between gap-3 p-2 border border-white/10 bg-[#0f0f0f] rounded-none cursor-pointer">
-                    <span class="text-sm">Always on top</span>
-                    <input class="rounded-none" type="checkbox" bind:checked={config.always_on_top} />
-                  </label>
-                </div>
-
-                <label class="block space-y-1 text-sm" for="uiProfile">
-                  <span class="text-gray-300">GUI profile</span>
-                  <select
-                    id="uiProfile"
-                    class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
-                    bind:value={uiProfile}
-                    on:change={handleUiProfileChange}
-                  >
-                    {#each Object.keys(uiProfiles) as profile}
-                      <option value={profile}>{uiProfiles[profile].label}</option>
-                    {/each}
-                  </select>
-                  <p class="text-xs text-gray-400">Switch between Default and the pink rainbow "LGBTQ+ Pride" preset.</p>
-                </label>
-              </div>
+      <section>
+        <Card class="border-border/70 bg-card/90">
+          <CardHeader class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div class="space-y-1">
+              <p class="text-xs uppercase tracking-[0.25em] text-muted-foreground">Preferences</p>
+              <CardTitle>Settings & configuration</CardTitle>
+              <CardDescription>Adjust automation timing, notifications, and capture regions.</CardDescription>
             </div>
-          {:else if activeSettingsTab === 'automation'}
-            <div class="grid md:grid-cols-2 gap-4">
-              <div class="space-y-3">
-                <label class="block space-y-1 text-sm" for="screenshotInterval">
-                  <span class="text-gray-300">Screenshot interval (mins)</span>
-                  <input
-                    id="screenshotInterval"
-                    type="number"
-                    min="1"
-                    bind:value={config.screenshot_interval_mins}
-                    class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
-                  />
-                </label>
-
-                <label class="block space-y-1 text-sm" for="maxFishingTimeout">
-                  <span class="text-gray-300">Max fishing timeout (ms)</span>
-                  <input
-                    id="maxFishingTimeout"
-                    type="number"
-                    min="0"
-                    bind:value={config.max_fishing_timeout_ms}
-                    readonly
-                    class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none opacity-80 focus:outline-none focus:border-orange-500"
-                  />
-                  <p class="text-xs text-gray-400">Tied to lure value using Arcane Odyssey bite timing math.</p>
-                </label>
-              </div>
-
-              <div class="space-y-3">
-                <label class="block space-y-1 text-sm" for="rodLureValue">
-                  <span class="text-gray-300">Rod lure value</span>
-                  <input
-                    id="rodLureValue"
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    bind:value={config.rod_lure_value}
-                    class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
-                  />
-                  <p class="text-xs text-gray-400">Derives a ~{Math.round(config.max_fishing_timeout_ms / 1000)}s timeout.</p>
-                </label>
-
-                <div class="border border-white/10 bg-[#1d1d1d] p-3 rounded-none space-y-2 text-sm text-gray-100">
-                  <label class="flex items-center justify-between gap-3 p-2 border border-white/10 bg-[#0f0f0f] rounded-none cursor-pointer">
-                    <span class="text-sm">Auto-save config</span>
-                    <input class="rounded-none" type="checkbox" bind:checked={config.auto_save_enabled} />
-                  </label>
-                  <p class="text-xs text-gray-400 px-2">Keeps your lure, timeout, and screenshot cadence synchronized with the in-game loop.</p>
-                </div>
-              </div>
+            <div class="flex flex-wrap gap-2">
+              <Button variant="secondary" on:click={loadState}>Reset</Button>
+              <Button on:click={saveConfig}>Save</Button>
             </div>
-          {:else}
-              <div class="space-y-4">
-                <div class="grid md:grid-cols-2 gap-3">
-                  <label class="block space-y-1 text-sm" for="regionPreset">
-                    <span class="text-gray-300">Resolution preset</span>
-                    <select
-                      id="regionPreset"
-                      class="w-full bg-[#0f0f0f] border border-white/15 px-3 py-2 text-white rounded-none focus:outline-none focus:border-orange-500"
-                      bind:value={config.region_preset}
-                      on:change={handlePresetChange}
-                    >
-                      {#each (presetOptions.length ? presetOptions : [config.region_preset]) as preset}
-                        <option value={preset}>{preset}</option>
-                      {/each}
-                    </select>
-                  </label>
-                  <div class="border border-white/10 bg-[#1d1d1d] p-3 rounded-none text-sm text-gray-300">
-                    <p class="font-semibold text-white">Hunger & detection overlays</p>
-                    <p class="text-gray-400">Align red, yellow, and hunger regions with your Arcane Odyssey HUD for accurate bite and hunger detection.</p>
-                  </div>
-                </div>
+          </CardHeader>
+          <CardContent>
+            {#if config}
+              <Tabs bind:value={activeSettingsTab}>
+                <TabsList class="flex flex-wrap">
+                  {#each settingsTabs as tab}
+                    <TabsTrigger value={tab}>{settingsTabLabels[tab]}</TabsTrigger>
+                  {/each}
+                </TabsList>
 
-                <div class="grid md:grid-cols-3 gap-3 text-sm">
-                  <div class="border border-white/10 bg-[#1d1d1d] p-3 rounded-none space-y-2">
-                    <p class="text-orange-400 font-semibold uppercase tracking-wide text-xs">Red region</p>
-                    <label class="block space-y-1" for="redX">
-                      <span class="text-gray-300">X</span>
-                      <input
-                        id="redX"
-                        type="number"
-                        bind:value={config.red_region.x}
-                        class="w-full bg-[#0f0f0f] border border-white/15 px-2 py-2 text-white rounded-none focus:border-orange-500"
-                      />
-                    </label>
-                    <label class="block space-y-1" for="redY">
-                      <span class="text-gray-300">Y</span>
-                      <input
-                        id="redY"
-                        type="number"
-                        bind:value={config.red_region.y}
-                        class="w-full bg-[#0f0f0f] border border-white/15 px-2 py-2 text-white rounded-none focus:border-orange-500"
-                      />
-                    </label>
-                    <label class="block space-y-1" for="redWidth">
-                      <span class="text-gray-300">Width</span>
-                      <input
-                        id="redWidth"
-                        type="number"
-                        min="0"
-                        bind:value={config.red_region.width}
-                        class="w-full bg-[#0f0f0f] border border-white/15 px-2 py-2 text-white rounded-none focus:border-orange-500"
-                      />
-                    </label>
-                    <label class="block space-y-1" for="redHeight">
-                      <span class="text-gray-300">Height</span>
-                      <input
-                        id="redHeight"
-                        type="number"
-                        min="0"
-                        bind:value={config.red_region.height}
-                        class="w-full bg-[#0f0f0f] border border-white/15 px-2 py-2 text-white rounded-none focus:border-orange-500"
-                      />
-                    </label>
-                  </div>
+                <TabsContent value="general">
+                  <div class="grid gap-6 lg:grid-cols-[2fr_1fr]">
+                    <div class="space-y-4">
+                      <div class="rounded-md border border-border/70 bg-muted/20 p-4 space-y-2">
+                        <div class="flex items-center justify-between text-sm">
+                          <Label forId="colorTolerance">Color tolerance</Label>
+                          <span class="rounded-md border border-border/70 bg-background/60 px-2 py-1 font-mono text-primary">
+                            {config.color_tolerance}%
+                          </span>
+                        </div>
+                        <input
+                          id="colorTolerance"
+                          type="range"
+                          min="0"
+                          max="30"
+                          bind:value={config.color_tolerance}
+                          class="w-full accent-primary"
+                          on:input={markConfigDirty}
+                        />
+                      </div>
 
-                  <div class="border border-white/10 bg-[#1d1d1d] p-3 rounded-none space-y-2">
-                    <p class="text-yellow-300 font-semibold uppercase tracking-wide text-xs">Yellow region</p>
-                    <label class="block space-y-1" for="yellowX">
-                      <span class="text-gray-300">X</span>
-                      <input
-                        id="yellowX"
-                        type="number"
-                        bind:value={config.yellow_region.x}
-                        class="w-full bg-[#0f0f0f] border border-white/15 px-2 py-2 text-white rounded-none focus:border-orange-500"
-                      />
-                    </label>
-                    <label class="block space-y-1" for="yellowY">
-                      <span class="text-gray-300">Y</span>
-                      <input
-                        id="yellowY"
-                        type="number"
-                        bind:value={config.yellow_region.y}
-                        class="w-full bg-[#0f0f0f] border border-white/15 px-2 py-2 text-white rounded-none focus:border-orange-500"
-                      />
-                    </label>
-                    <label class="block space-y-1" for="yellowWidth">
-                      <span class="text-gray-300">Width</span>
-                      <input
-                        id="yellowWidth"
-                        type="number"
-                        min="0"
-                        bind:value={config.yellow_region.width}
-                        class="w-full bg-[#0f0f0f] border border-white/15 px-2 py-2 text-white rounded-none focus:border-orange-500"
-                      />
-                    </label>
-                    <label class="block space-y-1" for="yellowHeight">
-                      <span class="text-gray-300">Height</span>
-                      <input
-                        id="yellowHeight"
-                        type="number"
-                        min="0"
-                        bind:value={config.yellow_region.height}
-                        class="w-full bg-[#0f0f0f] border border-white/15 px-2 py-2 text-white rounded-none focus:border-orange-500"
-                      />
-                    </label>
-                  </div>
+                      <div class="grid gap-3 md:grid-cols-2">
+                        <div class="space-y-1">
+                          <Label forId="autoClick">Auto-click (ms)</Label>
+                          <Input id="autoClick" type="number" bind:value={config.autoclick_interval_ms} on:input={markConfigDirty} />
+                        </div>
+                        <div class="space-y-1">
+                          <Label forId="detection">Detection (ms)</Label>
+                          <Input id="detection" type="number" bind:value={config.detection_interval_ms} on:input={markConfigDirty} />
+                        </div>
+                      </div>
 
-                  <div class="border border-white/10 bg-[#1d1d1d] p-3 rounded-none space-y-2">
-                    <p class="text-emerald-300 font-semibold uppercase tracking-wide text-xs">Hunger region</p>
-                    <label class="block space-y-1" for="hungerX">
-                      <span class="text-gray-300">X</span>
-                      <input
-                        id="hungerX"
-                        type="number"
-                        bind:value={config.hunger_region.x}
-                        class="w-full bg-[#0f0f0f] border border-white/15 px-2 py-2 text-white rounded-none focus:border-orange-500"
-                      />
-                    </label>
-                    <label class="block space-y-1" for="hungerY">
-                      <span class="text-gray-300">Y</span>
-                      <input
-                        id="hungerY"
-                        type="number"
-                        bind:value={config.hunger_region.y}
-                        class="w-full bg-[#0f0f0f] border border-white/15 px-2 py-2 text-white rounded-none focus:border-orange-500"
-                      />
-                    </label>
-                    <label class="block space-y-1" for="hungerWidth">
-                      <span class="text-gray-300">Width</span>
-                      <input
-                        id="hungerWidth"
-                        type="number"
-                        min="0"
-                        bind:value={config.hunger_region.width}
-                        class="w-full bg-[#0f0f0f] border border-white/15 px-2 py-2 text-white rounded-none focus:border-orange-500"
-                      />
-                    </label>
-                    <label class="block space-y-1" for="hungerHeight">
-                      <span class="text-gray-300">Height</span>
-                      <input
-                        id="hungerHeight"
-                        type="number"
-                        min="0"
-                        bind:value={config.hunger_region.height}
-                        class="w-full bg-[#0f0f0f] border border-white/15 px-2 py-2 text-white rounded-none focus:border-orange-500"
-                      />
-                    </label>
+                      <div class="grid gap-3 md:grid-cols-2">
+                        <div class="space-y-1">
+                          <Label forId="fishPerFeed">Fish per feed</Label>
+                          <Input id="fishPerFeed" type="number" bind:value={config.fish_per_feed} on:input={markConfigDirty} />
+                        </div>
+                        <div class="space-y-1">
+                          <Label forId="startupDelay">Startup delay (ms)</Label>
+                          <Input id="startupDelay" type="number" bind:value={config.startup_delay_ms} on:input={markConfigDirty} />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="space-y-4">
+                      <div class="space-y-1">
+                        <Label forId="webhook">Webhook URL</Label>
+                        <Input
+                          id="webhook"
+                          type="url"
+                          bind:value={config.webhook_url}
+                          placeholder="https://discord..."
+                          on:input={markConfigDirty}
+                        />
+                      </div>
+                      <div class="rounded-md border border-border/70 bg-muted/20 p-4 space-y-3 text-sm">
+                        <div class="flex items-center justify-between">
+                          <span>Enable screenshots</span>
+                          <Switch bind:checked={config.screenshot_enabled} on:change={markConfigDirty} />
+                        </div>
+                        <div class="flex items-center justify-between">
+                          <span>Enable failsafe</span>
+                          <Switch bind:checked={config.failsafe_enabled} on:change={markConfigDirty} />
+                        </div>
+                        <div class="flex items-center justify-between">
+                          <span>Advanced detection</span>
+                          <Switch bind:checked={config.advanced_detection} on:change={markConfigDirty} />
+                        </div>
+                        <div class="flex items-center justify-between">
+                          <span>Always on top</span>
+                          <Switch bind:checked={config.always_on_top} on:change={markConfigDirty} />
+                        </div>
+                      </div>
+
+                      <div class="space-y-1">
+                        <Label forId="uiProfile">GUI profile</Label>
+                        <Select id="uiProfile" bind:value={uiProfile} on:change={handleUiProfileChange}>
+                          {#each Object.keys(uiProfiles) as profile}
+                            <option value={profile}>{uiProfiles[profile].label}</option>
+                          {/each}
+                        </Select>
+                        <p class="text-xs text-muted-foreground">Switch between the default UI and alternate color profiles.</p>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
+                </TabsContent>
+
+                <TabsContent value="automation">
+                  <div class="grid gap-6 md:grid-cols-2">
+                    <div class="space-y-4">
+                      <div class="space-y-1">
+                        <Label forId="screenshotInterval">Screenshot interval (mins)</Label>
+                        <Input
+                          id="screenshotInterval"
+                          type="number"
+                          min="1"
+                          bind:value={config.screenshot_interval_mins}
+                          on:input={markConfigDirty}
+                        />
+                      </div>
+
+                      <div class="space-y-1">
+                        <Label forId="maxFishingTimeout">Max fishing timeout (ms)</Label>
+                        <Input
+                          id="maxFishingTimeout"
+                          type="number"
+                          min="0"
+                          bind:value={config.max_fishing_timeout_ms}
+                          readonly
+                          class="opacity-80"
+                        />
+                        <p class="text-xs text-muted-foreground">Calculated from lure value.</p>
+                      </div>
+                    </div>
+
+                    <div class="space-y-4">
+                      <div class="space-y-1">
+                        <Label forId="rodLureValue">Rod lure value</Label>
+                        <Input
+                          id="rodLureValue"
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          bind:value={config.rod_lure_value}
+                          on:input={markConfigDirty}
+                        />
+                        <p class="text-xs text-muted-foreground">
+                          Derives a ~{Math.round(config.max_fishing_timeout_ms / 1000)}s timeout.
+                        </p>
+                      </div>
+
+                      <div class="rounded-md border border-border/70 bg-muted/20 p-4 space-y-2 text-sm">
+                        <div class="flex items-center justify-between">
+                          <span>Auto-save config</span>
+                          <Switch bind:checked={config.auto_save_enabled} on:change={markConfigDirty} />
+                        </div>
+                        <p class="text-xs text-muted-foreground">
+                          Keeps lure, timeout, and screenshot cadence synchronized with the in-game loop.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="regions">
+                  <div class="space-y-4">
+                    <div class="grid gap-4 md:grid-cols-2">
+                      <div class="space-y-1">
+                        <Label forId="regionPreset">Resolution preset</Label>
+                        <Select id="regionPreset" bind:value={config.region_preset} on:change={handlePresetChange}>
+                          {#each (presetOptions.length ? presetOptions : [config.region_preset]) as preset}
+                            <option value={preset}>{preset}</option>
+                          {/each}
+                        </Select>
+                      </div>
+                      <div class="rounded-md border border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
+                        <p class="font-semibold text-foreground">Hunger & detection overlays</p>
+                        <p>Align red, yellow, and hunger regions with your Arcane Odyssey HUD.</p>
+                      </div>
+                    </div>
+
+                    <div class="grid gap-4 md:grid-cols-3 text-sm">
+                      <div class="rounded-md border border-border/70 bg-muted/20 p-4 space-y-2">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-primary">Red region</p>
+                        <div class="space-y-1">
+                          <Label forId="redX">X</Label>
+                          <Input id="redX" type="number" bind:value={config.red_region.x} on:input={markConfigDirty} />
+                        </div>
+                        <div class="space-y-1">
+                          <Label forId="redY">Y</Label>
+                          <Input id="redY" type="number" bind:value={config.red_region.y} on:input={markConfigDirty} />
+                        </div>
+                        <div class="space-y-1">
+                          <Label forId="redWidth">Width</Label>
+                          <Input id="redWidth" type="number" min="0" bind:value={config.red_region.width} on:input={markConfigDirty} />
+                        </div>
+                        <div class="space-y-1">
+                          <Label forId="redHeight">Height</Label>
+                          <Input id="redHeight" type="number" min="0" bind:value={config.red_region.height} on:input={markConfigDirty} />
+                        </div>
+                      </div>
+
+                      <div class="rounded-md border border-border/70 bg-muted/20 p-4 space-y-2">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-amber-300">Yellow region</p>
+                        <div class="space-y-1">
+                          <Label forId="yellowX">X</Label>
+                          <Input id="yellowX" type="number" bind:value={config.yellow_region.x} on:input={markConfigDirty} />
+                        </div>
+                        <div class="space-y-1">
+                          <Label forId="yellowY">Y</Label>
+                          <Input id="yellowY" type="number" bind:value={config.yellow_region.y} on:input={markConfigDirty} />
+                        </div>
+                        <div class="space-y-1">
+                          <Label forId="yellowWidth">Width</Label>
+                          <Input id="yellowWidth" type="number" min="0" bind:value={config.yellow_region.width} on:input={markConfigDirty} />
+                        </div>
+                        <div class="space-y-1">
+                          <Label forId="yellowHeight">Height</Label>
+                          <Input
+                            id="yellowHeight"
+                            type="number"
+                            min="0"
+                            bind:value={config.yellow_region.height}
+                            on:input={markConfigDirty}
+                          />
+                        </div>
+                      </div>
+
+                      <div class="rounded-md border border-border/70 bg-muted/20 p-4 space-y-2">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-emerald-300">Hunger region</p>
+                        <div class="space-y-1">
+                          <Label forId="hungerX">X</Label>
+                          <Input id="hungerX" type="number" bind:value={config.hunger_region.x} on:input={markConfigDirty} />
+                        </div>
+                        <div class="space-y-1">
+                          <Label forId="hungerY">Y</Label>
+                          <Input id="hungerY" type="number" bind:value={config.hunger_region.y} on:input={markConfigDirty} />
+                        </div>
+                        <div class="space-y-1">
+                          <Label forId="hungerWidth">Width</Label>
+                          <Input id="hungerWidth" type="number" min="0" bind:value={config.hunger_region.width} on:input={markConfigDirty} />
+                        </div>
+                        <div class="space-y-1">
+                          <Label forId="hungerHeight">Height</Label>
+                          <Input
+                            id="hungerHeight"
+                            type="number"
+                            min="0"
+                            bind:value={config.hunger_region.height}
+                            on:input={markConfigDirty}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
+            {:else}
+              <p class="text-muted-foreground">Loading...</p>
             {/if}
-        {:else}
-          <p class="text-gray-400">Loading...</p>
-        {/if}
+          </CardContent>
+        </Card>
       </section>
     {/if}
   </div>
 </main>
 
 <style>
-  .app-shell {
-    background: var(--app-bg);
-  }
-
-  .app-shell :global(.titlebar),
-  .app-shell :global(.border),
-  .app-shell :global([class*='border-']),
-  .app-shell :global([class*='bg-']),
-  .app-shell :global(button),
-  .app-shell :global(input),
-  .app-shell :global(select),
-  .app-shell :global(textarea) {
-    background: var(--panel-bg);
-    border-color: var(--panel-border);
-    box-shadow: var(--panel-shadow);
-  }
-
-  .app-shell :global(button) {
-    background: var(--button-bg);
-    border-color: var(--button-border);
-    color: var(--button-text);
-    box-shadow: var(--button-shadow);
-  }
-
-  .app-shell :global(button:hover) {
-    background: var(--button-bg-hover);
-    box-shadow: var(--button-shadow-hover);
-  }
-
-  .app-shell :global(input),
-  .app-shell :global(select),
-  .app-shell :global(textarea) {
-    background: var(--input-bg);
-    border-color: var(--input-border);
-    color: var(--input-text);
-    box-shadow: var(--input-shadow);
-  }
-
-  .app-shell :global(input[type='range']) {
-    accent-color: var(--range-accent);
-  }
-
-  .app-shell :global(input[type='range']::-webkit-slider-runnable-track) {
-    background: var(--range-accent);
-  }
-
-  .app-shell :global(input[type='range']::-webkit-slider-thumb) {
-    background: var(--range-accent);
-    border: 1px solid var(--range-accent);
-  }
-
-  .app-shell :global(input[type='range']::-moz-range-track) {
-    background: var(--range-accent);
-  }
-
-  .app-shell :global(input[type='range']::-moz-range-thumb) {
-    background: var(--range-accent);
-    border: 1px solid var(--range-accent);
-  }
-
-  .app-shell :global(.slider-value) {
-    color: var(--range-accent);
-  }
-
-  .theme-default {
-    --app-bg: #1a1a1a;
-    --titlebar-bg: #0f0f0f;
-    --titlebar-border: rgba(255, 255, 255, 0.1);
-    --panel-bg: #1d1d1d;
-    --panel-border: rgba(255, 255, 255, 0.1);
-    --panel-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-    --button-bg: #1d1d1d;
-    --button-bg-hover: #2a2a2a;
-    --button-border: rgba(255, 255, 255, 0.2);
-    --button-text: #ffffff;
-    --button-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
-    --button-shadow-hover: 0 8px 22px rgba(0, 0, 0, 0.45);
-    --input-bg: #0f0f0f;
-    --input-border: rgba(255, 255, 255, 0.15);
-    --input-text: #ffffff;
-    --input-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
-    --range-accent: #000000;
-  }
-
-  .theme-pride {
-    --app-bg: linear-gradient(
-      135deg,
-      #ff5fa2 0%,
-      #ff8bd1 18%,
-      #ffd1ec 35%,
-      #b6f3ff 50%,
-      #8be8ff 60%,
-      #7a9bff 75%,
-      #b274ff 90%,
-      #ff5fa2 100%
-    );
-    --titlebar-bg: linear-gradient(90deg, #ff4d9d, #ffb347, #ffee93, #7afcff, #7a9bff, #c77dff);
-    --titlebar-border: rgba(255, 255, 255, 0.35);
-    --panel-bg: rgba(20, 18, 24, 0.72);
-    --panel-border: rgba(255, 255, 255, 0.25);
-    --panel-shadow: 0 14px 32px rgba(0, 0, 0, 0.35), 0 0 18px rgba(255, 95, 162, 0.25);
-    --button-bg: linear-gradient(120deg, #ff5fa2, #ffb347, #7afcff, #7a9bff);
-    --button-bg-hover: linear-gradient(120deg, #ff7db7, #ffd479, #9effff, #96b5ff);
-    --button-border: rgba(255, 255, 255, 0.55);
-    --button-text: #0f0f0f;
-    --button-shadow: 0 10px 20px rgba(255, 95, 162, 0.35), 0 4px 12px rgba(0, 0, 0, 0.35);
-    --button-shadow-hover: 0 12px 24px rgba(255, 95, 162, 0.45), 0 6px 14px rgba(0, 0, 0, 0.4);
-    --input-bg: rgba(15, 15, 15, 0.65);
-    --input-border: rgba(255, 255, 255, 0.4);
-    --input-text: #ffffff;
-    --input-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
-    --range-accent: #0f0f0f;
-  }
-
-  .theme-black-mesa {
-    --app-bg: radial-gradient(circle at 12% 12%, rgba(60, 44, 28, 0.6) 0%, rgba(16, 14, 12, 0.9) 45%, #060606 100%),
-      linear-gradient(135deg, rgba(24, 16, 10, 0.9) 0%, rgba(8, 8, 8, 0.95) 100%);
-    --titlebar-bg: linear-gradient(90deg, #4a2414 0%, #a5562e 48%, #6f351c 100%);
-    --titlebar-border: rgba(255, 142, 48, 0.65);
-    --panel-bg: linear-gradient(135deg, rgba(22, 16, 12, 0.92), rgba(72, 36, 18, 0.4));
-    --panel-border: rgba(255, 150, 60, 0.28);
-    --panel-shadow: 0 12px 28px rgba(0, 0, 0, 0.55), 0 0 20px rgba(255, 144, 48, 0.18);
-    --button-bg: linear-gradient(90deg, #f5a340 0%, #f0891b 45%, #cc5b16 100%);
-    --button-bg-hover: linear-gradient(90deg, #ffc06b 0%, #ffa03c 45%, #e46a1f 100%);
-    --button-border: rgba(255, 170, 85, 0.6);
-    --button-text: #1a0d05;
-    --button-shadow: 0 10px 20px rgba(255, 143, 46, 0.28), 0 4px 12px rgba(0, 0, 0, 0.45);
-    --button-shadow-hover: 0 12px 26px rgba(255, 156, 66, 0.4), 0 6px 14px rgba(0, 0, 0, 0.55);
-    --input-bg: rgba(10, 8, 6, 0.88);
-    --input-border: rgba(255, 150, 70, 0.4);
-    --input-text: #f5efe7;
-    --input-shadow: inset 0 0 0 1px rgba(255, 145, 55, 0.12);
-    --range-accent: #f5a340;
-  }
-
   .titlebar {
     -webkit-app-region: drag;
-    background: var(--titlebar-bg);
-    border-bottom: 1px solid var(--titlebar-border);
   }
 
   .titlebar * {
     -webkit-app-region: no-drag;
   }
 
-  .titlebar .font-semibold {
+  .titlebar .titlebar-drag {
     -webkit-app-region: drag;
   }
 
@@ -852,8 +625,10 @@
   }
 
   .control-dot {
-    width: 14px;
-    height: 14px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    border: 1px solid hsl(var(--border));
+    background: hsl(var(--muted));
   }
 </style>
