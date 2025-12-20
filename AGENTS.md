@@ -1,12 +1,20 @@
-https://roblox-arcane-odyssey.fandom.com/wiki/Fishing
-https://roblox-arcane-odyssey.fandom.com/wiki/Arcane_Odyssey_Wiki
-This program is an automated fish-bot for the roblox game arcane odyssey, a legal program permitted under the game rules as long as the user is present at the keyboard. REFER TO THE WIKI LINK TO MAKE SURE ALL CHANGES ARE RELEVANT.
+# AI AGENT INSTRUCTIONS
 
-The bot works on the game loop of scanning it's search regions for 1. Red for biting, 2. Yellow for caught confirm, 3. OCR for hunger percentage detection, determining if the food cycle is required to keep the user from dying.
+## Project Overview
+This is a Rust-powered desktop automation tool for the game "Arcane Odyssey". It uses Tauri (v1) for the desktop shell and Svelte/Tailwind for the UI.
 
-the Arcane Odyssey Fish Bot has various features:
--Calcutaed lure value for maximum time out to restart loop. 
--Auto Feed
--Preset between 1080 and 1440p Ultrawide
--Satistics Dash
--Various settings in the tabs.
+## 🛑 STRICT RULES (DO NOT IGNORE)
+1. **NO ELECTRON:** This project uses TAURI. Do not suggest or import Electron packages.
+2. **NO TAURI V2:** This project uses Tauri v1 (stable). Do not use `frontendDist`, use `distDir`.
+3. **NO FANTASY UI:** The design language is strictly "Industrial / Sci-Fi / Black Mesa".
+   - NO rounded corners (`rounded-none`).
+   - NO gradients or "glassmorphism".
+   - Colors: `#ff9a00` (Orange) and `#1a1a1a` (Dark Grey).
+
+## Technical Stack
+- **Backend:** Rust (Tauri commands)
+- **Frontend:** Svelte + TypeScript + Tailwind CSS
+- **Communication:** Use `@tauri-apps/api/tauri` and `invoke` to call Rust.
+
+## User Persona
+The user ("Aus1273") prefers direct, technical solutions. Do not use "flavor text" (e.g., "summoning runes") in the code or UI. Keep it functional.
