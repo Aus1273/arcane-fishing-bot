@@ -306,11 +306,16 @@ fn emit_state_update(window: &Window, state: &SharedState) {
 }
 
 fn capture_region(region: Region) -> Result<RgbaImage> {
-    let screens = Screen::all()?;
-    let screen = screens.first().ok_or_else(|| anyhow!("No screens found"))?;
-    let image = screen.capture_area(region.x, region.y, region.width, region.height)?;
-    RgbaImage::from_raw(region.width, region.height, image.to_vec())
-        .ok_or_else(|| anyhow!("Failed to build image buffer"))
+    let screen = Screen::from_point(region.x, region.y)
+        .or_else(|_| {
+            Screen::all()?
+                .into_iter()
+                .next()
+                .ok_or_else(|| anyhow!("No screens found"))
+        })?;
+    let relative_x = region.x - screen.display_info.x;
+    let relative_y = region.y - screen.display_info.y;
+    screen.capture_area(relative_x, relative_y, region.width, region.height)
 }
 
 fn count_matching_pixels(image: &RgbaImage, target: (u8, u8, u8), tolerance: u8) -> u32 {
