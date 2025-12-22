@@ -7,7 +7,8 @@ use parking_lot::RwLock;
 use screenshots::Screen;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc, Mutex,
@@ -275,6 +276,7 @@ pub struct SharedState {
     pub running: Arc<AtomicBool>,
     pub worker_handle: Arc<Mutex<Option<JoinHandle<()>>>>,
     pub ocr: Arc<Mutex<OcrHandler>>,
+    pub log_path: Arc<Mutex<Option<PathBuf>>>,
 }
 
 impl SharedState {
@@ -287,6 +289,7 @@ impl SharedState {
             running: Arc::new(AtomicBool::new(false)),
             worker_handle: Arc::new(Mutex::new(None)),
             ocr,
+            log_path: Arc::new(Mutex::new(None)),
         })
     }
 }
@@ -383,7 +386,36 @@ fn update_error_state(state: &SharedState, window: &Window, message: &str) {
         session.errors_count += 1;
         session.last_action = message.to_string();
     }
+    log_event(state, "ERROR", message);
     emit_state_update(window, state);
+}
+
+fn session_log_path() -> Result<PathBuf> {
+    let base_dir = ProjectDirs::from("com", "arcane", "fishing-bot")
+        .map(|dirs| dirs.data_dir().join("logs"))
+        .unwrap_or_else(|| PathBuf::from("logs"));
+    std::fs::create_dir_all(&base_dir)?;
+    let filename = format!("session_{}.log", Local::now().format("%Y%m%d_%H%M%S"));
+    Ok(base_dir.join(filename))
+}
+
+fn append_log(path: &Path, level: &str, message: &str) -> Result<()> {
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)?;
+    let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S");
+    writeln!(file, "[{}] [{}] {}", timestamp, level, message)?;
+    Ok(())
+}
+
+fn log_event(state: &SharedState, level: &str, message: &str) {
+    let log_path = state.log_path.lock().ok().and_then(|guard| guard.clone());
+    if let Some(path) = log_path {
+        if let Err(err) = append_log(&path, level, message) {
+            eprintln!("Failed to write log: {}", err);
+        }
+    }
 }
 
 fn worker_loop(state: SharedState, window: Window) {
@@ -392,6 +424,7 @@ fn worker_loop(state: SharedState, window: Window) {
     let mut enigo = Enigo::new(&Settings::default()).expect("Failed to init Enigo");
 
     thread::sleep(Duration::from_millis(state.config.read().startup_delay_ms));
+    log_event(&state, "INFO", "Worker loop started");
 
     loop {
         if !state.running.load(Ordering::Relaxed) {
@@ -439,6 +472,7 @@ fn worker_loop(state: SharedState, window: Window) {
             thread::sleep(Duration::from_millis(200));
             continue;
         }
+        log_event(&state, "INFO", "Cast line");
         thread::sleep(reel_interval);
 
         {
@@ -468,6 +502,7 @@ fn worker_loop(state: SharedState, window: Window) {
                     );
                     if count >= red_threshold {
                         bite_detected = true;
+                        log_event(&state, "INFO", "Bite detected");
                         break;
                     }
                 }
@@ -486,6 +521,7 @@ fn worker_loop(state: SharedState, window: Window) {
             session.last_action = "Reeling in".to_string();
         }
         emit_state_update(&window, &state);
+        log_event(&state, "INFO", "Reeling started");
 
         let reel_start = Instant::now();
         let mut caught = false;
@@ -545,6 +581,7 @@ fn worker_loop(state: SharedState, window: Window) {
             session.last_action = format!("Caught fish #{}", session.fish_caught);
             session.fish_caught
         };
+        log_event(&state, "INFO", &format!("Caught fish #{}", fish_caught));
 
         {
             let mut stats = state.stats.write();
@@ -556,23 +593,25 @@ fn worker_loop(state: SharedState, window: Window) {
 
         if fish_caught % config.fish_per_feed as u64 == 0 {
             {
-                let mut session = state.session.write();
-                session.last_action = "Checking hunger".to_string();
-            }
-            emit_state_update(&window, &state);
+            let mut session = state.session.write();
+            session.last_action = "Checking hunger".to_string();
+        }
+        emit_state_update(&window, &state);
+        log_event(&state, "INFO", "Checking hunger");
 
-            match check_hunger_ocr(hunger_region) {
-                Ok(hunger) => {
-                    {
-                        let mut session = state.session.write();
-                        session.hunger_level = hunger.min(100) as u8;
-                    }
-                    emit_state_update(&window, &state);
+        match check_hunger_ocr(hunger_region) {
+            Ok(hunger) => {
+                {
+                    let mut session = state.session.write();
+                    session.hunger_level = hunger.min(100) as u8;
+                }
+                emit_state_update(&window, &state);
+                log_event(&state, "INFO", &format!("Hunger level {}", hunger));
 
-                    if hunger < 50 {
-                        let _ = enigo.key(Key::Unicode('1'), Direction::Click);
-                        thread::sleep(Duration::from_millis(100));
-                        let _ = enigo.button(Button::Left, Direction::Click);
+                if hunger < 50 {
+                    let _ = enigo.key(Key::Unicode('1'), Direction::Click);
+                    thread::sleep(Duration::from_millis(100));
+                    let _ = enigo.button(Button::Left, Direction::Click);
                         thread::sleep(Duration::from_millis(200));
                         let _ = enigo.key(Key::Unicode('2'), Direction::Click);
 
@@ -582,14 +621,15 @@ fn worker_loop(state: SharedState, window: Window) {
                             stats.last_updated = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
                         }
                         {
-                            let mut session = state.session.write();
-                            session.last_action = "Fed character".to_string();
-                        }
-                        emit_state_update(&window, &state);
+                        let mut session = state.session.write();
+                        session.last_action = "Fed character".to_string();
                     }
+                    emit_state_update(&window, &state);
+                    log_event(&state, "INFO", "Fed character");
                 }
-                Err(_) => update_error_state(&state, &window, "OCR hunger check failed"),
             }
+            Err(_) => update_error_state(&state, &window, "OCR hunger check failed"),
+        }
         }
 
         thread::sleep(Duration::from_millis(50));
@@ -598,6 +638,11 @@ fn worker_loop(state: SharedState, window: Window) {
 
 pub fn start_bot(state: &SharedState, window: &Window) {
     state.running.store(true, Ordering::Relaxed);
+    if let Ok(path) = session_log_path() {
+        if let Ok(mut guard) = state.log_path.lock() {
+            *guard = Some(path);
+        }
+    }
     {
         let mut session = state.session.write();
         session.running = true;
@@ -609,6 +654,7 @@ pub fn start_bot(state: &SharedState, window: &Window) {
         );
     }
     emit_state_update(window, state);
+    log_event(state, "INFO", "Session started");
 
     let mut handle_guard = state.worker_handle.lock().expect("worker handle lock");
     if handle_guard.is_none() {
@@ -625,6 +671,7 @@ pub fn stop_bot(state: &SharedState, window: &Window) {
         session.running = false;
         session.last_action = "Stopped".to_string();
     }
+    log_event(state, "INFO", "Session stopped");
     {
         let mut stats = state.stats.write();
         stats.sessions_completed += 1;
