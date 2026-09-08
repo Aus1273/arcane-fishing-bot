@@ -1,25 +1,35 @@
 {
-  "package": {
-    "productName": "Arcane Fishing Bot",
-    "version": "0.1.0"
-  },
+  "plugins": {},
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
-    "devPath": "http://localhost:5173",
-    "distDir": "../dist"
+    "frontendDist": "../dist",
+    "devUrl": "http://127.0.0.1:5173"
   },
-  "tauri": {
+  "productName": "Arcane Fishing Bot",
+  "mainBinaryName": "Arcane Fishing Bot",
+  "version": "0.1.0",
+  "app": {
     "windows": [
       {
         "title": "Arcane Fishing Bot",
         "width": 1100,
         "height": 800,
-        "resizable": true
+        "resizable": true,
+        "useHttpsScheme": true,
+        "minWidth": 800,
+        "minHeight": 600
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src ipc: http://ipc.localhost https://ipc.localhost; object-src 'none'; base-uri 'self'",
+      "devCsp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src ipc: http://ipc.localhost https://ipc.localhost ws://localhost:5173 ws://127.0.0.1:5173; object-src 'none'; base-uri 'self'"
     }
+  },
+  "$schema": "https://schema.tauri.app/config/2",
+  "identifier": "com.arcane.fishing-bot",
+  "bundle": {
+    "active": true,
+    "targets": "all"
   }
 }

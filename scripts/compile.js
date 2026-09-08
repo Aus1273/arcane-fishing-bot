@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -16,6 +17,7 @@ function runStep(label, command, args) {
       shell: process.platform === 'win32',
     });
 
+    child.on('error', reject);
     child.on('close', (code) => {
       if (code !== 0) {
         reject(new Error(`${label} failed with exit code ${code}`));
@@ -27,14 +29,12 @@ function runStep(label, command, args) {
 }
 
 async function main() {
-  await runStep('Install JavaScript dependencies', 'npm', ['install']);
-  await runStep('Build the Svelte frontend', 'npm', ['run', 'build']);
-  await runStep('Compile the Rust core (release)', 'cargo', ['build', '--release']);
-
-  console.log('\nBuild complete!');
-  console.log('- UI build output: dist/');
-  console.log('- Rust release binary: target/release/arcane-fishing-bot');
-  console.log("Run 'npm run tauri dev' to open the desktop app using the built UI.");
+  if (!existsSync(path.join(projectRoot, 'node_modules'))) {
+    await runStep('Install locked JavaScript dependencies', 'npm', ['ci']);
+  }
+  await runStep('Check frontend types', 'npm', ['run', 'check']);
+  await runStep('Build the Tauri desktop app', 'npm', ['run', 'tauri', 'build']);
+  console.log('Build complete: target/release/');
 }
 
 main().catch((error) => {

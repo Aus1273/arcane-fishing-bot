@@ -1,217 +1,46 @@
-import { invoke } from '@tauri-apps/api/tauri';
-
-export type Region = { x: number; y: number; width: number; height: number };
-export type ResolutionPreset = { red_region: Region; yellow_region: Region; hunger_region: Region };
-
+import { invoke, isTauri as inDesktop } from '@tauri-apps/api/core';
+import macbookProfile from '../../configs/macbook-pro-14-3024x1964.json';
+export const isTauri = inDesktop();
+export type Region = { x:number; y:number; width:number; height:number };
+export type Calibration = { frame_width:number; frame_height:number; hotbar_first_slot:number[]; hotbar_slot_stride:number; bite_rgb:number[]; bite_tolerance:number; bite_min_pixels:number; catch_rgb:number[]; catch_tolerance:number; catch_min_pixels:number };
 export type BotConfig = {
-  color_tolerance: number;
-  autoclick_interval_ms: number;
-  fish_per_feed: number;
-  webhook_url: string;
-  screenshot_interval_mins: number;
-  screenshot_enabled: boolean;
-  red_region: Region;
-  yellow_region: Region;
-  hunger_region: Region;
-  region_preset: string;
-  startup_delay_ms: number;
-  detection_interval_ms: number;
-  max_fishing_timeout_ms: number;
-  rod_lure_value: number;
-  always_on_top: boolean;
-  auto_save_enabled: boolean;
-  failsafe_enabled: boolean;
-  advanced_detection: boolean;
+  calibration:Calibration|null; region_preset:string; red_region:Region; yellow_region:Region; hunger_region:Region;
+  rod_slot:number; food_slot:number; auto_feed_enabled:boolean; energy_capacity_feed_below:number;
+  observation_max_age_ms:number; recovery_limit:number; fish_per_feed:number;
+  startup_delay_ms:number; detection_interval_ms:number; autoclick_interval_ms:number; max_fishing_timeout_ms:number;
+  rod_lure_value:number; always_on_top:boolean; color_tolerance:number;
+  // Preserved for old settings files; the current UI does not present unimplemented features.
+  feed_below_percent:number; webhook_url:string; screenshot_interval_mins:number; screenshot_enabled:boolean;
+  auto_save_enabled:boolean; failsafe_enabled:boolean; advanced_detection:boolean;
 };
-
-export type LifetimeStats = {
-  total_fish_caught: number;
-  total_runtime_seconds: number;
-  sessions_completed: number;
-  last_updated: string;
-  best_session_fish: number;
-  average_fish_per_hour: number;
-  total_feeds: number;
-  uptime_percentage: number;
+export type ResolutionPreset = { red_region:Region; yellow_region:Region; hunger_region:Region; settings:Partial<BotConfig>|null };
+export type EnergyReading = { usable:number; capacity:number };
+export type Observation = { sequence:number; captured_at_ms:number; bite:boolean; bite_checked:boolean; caught:boolean; rod_selected:boolean; food_selected:boolean; energy:EnergyReading|null; error:string|null };
+export type Controller = { phase:string; reason:string; fish_caught:number; feeds:number; errors:number; recovery_attempts:number; energy:EnergyReading|null };
+export type SessionState = { running:boolean; controller:Controller; elapsed_ms:number; observation:Observation|null };
+export type LifetimeStats = { total_fish_caught:number; total_runtime_seconds:number; sessions_completed:number; last_updated:string; best_session_fish:number; average_fish_per_hour:number; total_feeds:number; uptime_percentage:number };
+export type Snapshot = { stats:LifetimeStats; session:SessionState };
+export type Preview = { observation:Observation; elapsed_ms:number; regions:{name:string;data_url:string}[] };
+const defaults:BotConfig = {
+  calibration:null,region_preset:'3440x1440',red_region:{x:1321,y:99,width:768,height:546},yellow_region:{x:3097,y:1234,width:342,height:205},hunger_region:{x:274,y:1301,width:43,height:36},
+  rod_slot:2,food_slot:1,auto_feed_enabled:false,energy_capacity_feed_below:0,observation_max_age_ms:1000,recovery_limit:2,
+  fish_per_feed:5,startup_delay_ms:5000,detection_interval_ms:50,autoclick_interval_ms:70,max_fishing_timeout_ms:25000,rod_lure_value:1,always_on_top:false,color_tolerance:10,
+  feed_below_percent:50,webhook_url:'',screenshot_interval_mins:60,screenshot_enabled:false,auto_save_enabled:false,failsafe_enabled:false,advanced_detection:false,
 };
-
-export type SessionState = {
-  running: boolean;
-  last_action: string;
-  fish_caught: number;
-  hunger_level: number;
-  errors_count: number;
-  uptime_minutes: number;
-  started_at?: number | null;
+let previewConfig:BotConfig = {...defaults,...macbookProfile};
+const empty:Snapshot = {
+  stats:{total_fish_caught:0,total_runtime_seconds:0,sessions_completed:0,last_updated:'',best_session_fish:0,average_fish_per_hour:0,total_feeds:0,uptime_percentage:0},
+  session:{running:false,elapsed_ms:0,observation:null,controller:{phase:'stopped',reason:'Idle',fish_caught:0,feeds:0,errors:0,recovery_attempts:0,energy:null}},
 };
-
-export type BotState = {
-  config: BotConfig;
-  stats: LifetimeStats;
-  session: SessionState;
-};
-
-declare global {
-  interface Window {
-    __TAURI_IPC__?: unknown;
-  }
+export async function getConfig():Promise<BotConfig> {return isTauri ? invoke('get_config') : structuredClone(previewConfig);}
+export async function getStats():Promise<Snapshot> {return isTauri ? invoke('get_stats') : structuredClone(empty);}
+export async function saveConfig(config:BotConfig):Promise<void> {if(isTauri) await invoke('save_config',{config});else previewConfig=structuredClone(config);}
+export async function getResolutionPresets():Promise<Record<string,ResolutionPreset>> {
+  if(isTauri) return invoke('get_resolution_presets');
+  return {[macbookProfile.region_preset]:{red_region:macbookProfile.red_region,yellow_region:macbookProfile.yellow_region,hunger_region:macbookProfile.hunger_region,settings:macbookProfile}};
 }
-
-function fallbackState(): BotState {
-  return {
-    config: {
-      color_tolerance: 10,
-      autoclick_interval_ms: 70,
-      fish_per_feed: 5,
-      webhook_url: '',
-      screenshot_interval_mins: 60,
-      screenshot_enabled: true,
-      red_region: { x: 1321, y: 99, width: 768, height: 546 },
-      yellow_region: { x: 3097, y: 1234, width: 342, height: 205 },
-      hunger_region: { x: 274, y: 1301, width: 43, height: 36 },
-      region_preset: '3440x1440',
-      startup_delay_ms: 3000,
-      detection_interval_ms: 50,
-      max_fishing_timeout_ms: 25000,
-      rod_lure_value: 1.0,
-      always_on_top: false,
-      auto_save_enabled: true,
-      failsafe_enabled: true,
-      advanced_detection: false,
-    },
-    stats: {
-      total_fish_caught: 0,
-      total_runtime_seconds: 0,
-      sessions_completed: 0,
-      last_updated: new Date().toISOString(),
-      best_session_fish: 0,
-      average_fish_per_hour: 0,
-      total_feeds: 0,
-      uptime_percentage: 100,
-    },
-    session: {
-      running: false,
-      last_action: 'Idle',
-      fish_caught: 0,
-      hunger_level: 100,
-      errors_count: 0,
-      uptime_minutes: 0,
-      started_at: null,
-    },
-  };
-}
-
-const isTauri = typeof window !== 'undefined' && Boolean(window.__TAURI_IPC__);
-
-type InvokeResult<T> = { called: false } | { called: true; result: T };
-
-async function invokeCommand<T>(command: string, args?: Record<string, unknown>): Promise<InvokeResult<T>> {
-  if (!isTauri) return { called: false };
-  try {
-    const result = await invoke<T>(command, args);
-    return { called: true, result };
-  } catch (error) {
-    console.error(`Failed to invoke ${command}`, error);
-    return { called: false };
-  }
-}
-
-let inMemoryState: BotState | null = null;
-
-function ensureFallbackState(): BotState {
-  if (!inMemoryState) {
-    inMemoryState = fallbackState();
-  }
-  return inMemoryState;
-}
-
-export async function getState(): Promise<BotState> {
-  const [config, statsAndSession] = await Promise.all([
-    invokeCommand<BotConfig>('get_config'),
-    invokeCommand<[LifetimeStats, SessionState]>('get_stats'),
-  ]);
-
-  if (config.called && statsAndSession.called) {
-    const [stats, session] = statsAndSession.result;
-    inMemoryState = { config: config.result, stats, session };
-    return inMemoryState;
-  }
-
-  return ensureFallbackState();
-}
-
-export async function getConfig(): Promise<BotConfig> {
-  const config = await invokeCommand<BotConfig>('get_config');
-  if (config.called) {
-    ensureFallbackState().config = config.result;
-    return config.result;
-  }
-
-  return ensureFallbackState().config;
-}
-
-export async function getStats(): Promise<{ stats: LifetimeStats; session: SessionState }> {
-  const statsAndSession = await invokeCommand<[LifetimeStats, SessionState]>('get_stats');
-  if (statsAndSession.called) {
-    const [stats, session] = statsAndSession.result;
-    const state = ensureFallbackState();
-    state.stats = stats;
-    state.session = session;
-    return { stats, session };
-  }
-
-  const fallback = ensureFallbackState();
-  return { stats: fallback.stats, session: fallback.session };
-}
-
-export async function saveConfig(config: BotConfig): Promise<void> {
-  const result = await invokeCommand<void>('save_config', { config });
-  if (result.called) return;
-
-  const state = ensureFallbackState();
-  state.config = config;
-  state.session.last_action = 'Config updated';
-}
-
-export async function startSession(): Promise<void> {
-  const result = await invokeCommand<void>('start_session');
-  if (result.called) return;
-
-  const state = ensureFallbackState();
-  state.session.running = true;
-  state.session.started_at = Date.now();
-  state.session.last_action = 'Session started';
-}
-
-export async function stopSession(): Promise<void> {
-  const result = await invokeCommand<void>('stop_session');
-  if (result.called) return;
-
-  const state = ensureFallbackState();
-  state.session.running = false;
-  state.session.started_at = null;
-  state.session.last_action = 'Session stopped';
-  state.stats.sessions_completed += 1;
-  state.stats.last_updated = new Date().toISOString();
-}
-
-export async function calculateTimeout(lureValue: number): Promise<number> {
-  const result = await invokeCommand<number>('calculate_timeout', { lure_value: lureValue });
-  if (result.called) return result.result;
-
-  return ensureFallbackState().config.max_fishing_timeout_ms;
-}
-
-export async function getResolutionPresets(): Promise<Record<string, ResolutionPreset>> {
-  const result = await invokeCommand<Record<string, ResolutionPreset>>('get_resolution_presets');
-  if (result.called) return result.result;
-
-  const fallback = ensureFallbackState().config;
-  return {
-    [fallback.region_preset]: {
-      red_region: fallback.red_region,
-      yellow_region: fallback.yellow_region,
-      hunger_region: fallback.hunger_region,
-    },
-  };
-}
+export async function startSession():Promise<void> {if(!isTauri) throw new Error('Open the desktop app to run automation');await invoke('start_session');}
+export async function stopSession():Promise<void> {if(isTauri) await invoke('stop_session');}
+export async function inspectScreenshot(config:BotConfig,imageBase64:string):Promise<Preview> {return invoke('inspect_screenshot',{config,imageBase64});}
+export async function capturePreview(config:BotConfig):Promise<Preview> {return invoke('capture_preview',{config});}
+export function biteTimeout(lure:number):number {return Math.round(Math.min(180,Math.max(10,(lure<=1?3-2*lure:1.25-lure/3)*60+5))*1000);}
