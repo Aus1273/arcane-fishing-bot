@@ -1,0 +1,143 @@
+{
+  "name": "Normal fishing cycle",
+  "config": {
+    "region_preset": "MacBook Pro 14 - 3024x1964",
+    "red_region": {
+      "x": 0,
+      "y": 70,
+      "width": 2630,
+      "height": 1490
+    },
+    "yellow_region": {
+      "x": 2730,
+      "y": 1598,
+      "width": 190,
+      "height": 28
+    },
+    "hunger_region": {
+      "x": 1988,
+      "y": 1707,
+      "width": 101,
+      "height": 22
+    },
+    "rod_slot": 4,
+    "food_slot": 5,
+    "auto_feed_enabled": false,
+    "feed_below_percent": 50,
+    "startup_delay_ms": 0,
+    "detection_interval_ms": 50,
+    "autoclick_interval_ms": 70,
+    "max_fishing_timeout_ms": 25000,
+    "calibration": {
+      "frame_width": 3024,
+      "frame_height": 1964,
+      "bite_rgb": [
+        233,
+        96,
+        88
+      ],
+      "bite_tolerance": 36,
+      "bite_min_pixels": 150,
+      "catch_rgb": [
+        255,
+        255,
+        84
+      ],
+      "catch_tolerance": 20,
+      "catch_min_pixels": 250,
+      "hotbar_first_slot": [
+        868,
+        1834,
+        117,
+        11
+      ],
+      "hotbar_slot_stride": 130
+    }
+  },
+  "frames": [
+    {
+      "at_ms": 0,
+      "observation": {
+        "rod_selected": false,
+        "bite_checked": true
+      },
+      "expected_phase": "selecting_rod",
+      "expected_actions": [
+        {
+          "select_slot": 4
+        }
+      ]
+    },
+    {
+      "at_ms": 100,
+      "observation": {
+        "rod_selected": true,
+        "bite_checked": true
+      },
+      "expected_phase": "ready",
+      "expected_actions": []
+    },
+    {
+      "at_ms": 200,
+      "observation": {
+        "rod_selected": true,
+        "bite_checked": true
+      },
+      "expected_phase": "casting",
+      "expected_actions": [
+        "click"
+      ]
+    },
+    {
+      "at_ms": 501,
+      "observation": {
+        "rod_selected": true,
+        "bite_checked": true
+      },
+      "expected_phase": "waiting_for_bite",
+      "expected_actions": []
+    },
+    {
+      "at_ms": 600,
+      "observation": {
+        "rod_selected": true,
+        "bite": true,
+        "bite_checked": true
+      },
+      "expected_phase": "reeling",
+      "expected_actions": []
+    },
+    {
+      "at_ms": 610,
+      "observation": {
+        "rod_selected": true,
+        "bite_checked": true
+      },
+      "expected_phase": "reeling",
+      "expected_actions": [
+        "click"
+      ]
+    },
+    {
+      "at_ms": 700,
+      "observation": {
+        "rod_selected": true,
+        "caught": true,
+        "bite_checked": true
+      },
+      "expected_phase": "confirming_catch",
+      "expected_actions": []
+    },
+    {
+      "at_ms": 810,
+      "observation": {
+        "rod_selected": true,
+        "caught": true,
+        "bite_checked": true
+      },
+      "expected_phase": "cooldown",
+      "expected_actions": [],
+      "expected_fish": 1
+    }
+  ]
+}

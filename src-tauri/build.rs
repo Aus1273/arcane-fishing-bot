@@ -40,6 +40,11 @@ fn ensure_fallback_icon() {
         return;
     }
 
+    let png_path = icon_dir.join("icon.png");
+    if !png_path.exists() {
+        fs::write(&png_path, &FALLBACK_ICON[54..129]).expect("write fallback PNG icon");
+    }
+
     let icon_path = icon_dir.join("icon.ico");
     if icon_path.exists() {
         return;

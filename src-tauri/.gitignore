@@ -1,2 +1,4 @@
 # Generated at build time to satisfy Windows resource requirements
 /icons/icon.ico
+/icons/icon.png
+/gen/schemas/

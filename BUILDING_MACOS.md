@@ -1,34 +1,36 @@
 # Building on macOS
 
-These steps show how to compile and run **Arcane Fishing Bot** natively on macOS.
+The root Cargo workspace builds the Tauri 2 application. Historical code is under `legacy/`.
 
 ## Prerequisites
 
-1. **Rust toolchain** – install via [rustup](https://rustup.rs/).
-2. **Xcode Command Line Tools** – run `xcode-select --install` from Terminal.
-3. **Tesseract OCR** – `brew install tesseract` (required by `rusty-tesseract`).
+- Rust (`cargo` and `rustc`).
+- Node.js and npm.
+- Xcode Command Line Tools: `xcode-select --install`.
+- Tesseract with English data: `brew install tesseract`.
 
-## Build
+From the project root:
 
-```bash
-# clone and enter the project
-$ git clone https://github.com/yourusername/arcane-fishing-bot.git
-$ cd arcane-fishing-bot
-
-# format and compile
-$ cargo fmt
-$ cargo build --release
+```sh
+npm ci
+npm run tauri dev
 ```
 
-The compiled binary will be at `target/release/arcane-fishing-bot`.
+For automation, grant Accessibility and Screen Recording access in System Settings → Privacy & Security. Select and inspect the correct profile before starting. Focus Roblox during the startup delay. Losing focus pauses the controller.
 
-## Run
-
-Grant the application **Accessibility** and **Screen Recording** permissions in
-System Settings → *Privacy & Security*. Then execute:
-
-```bash
-$ ./target/release/arcane-fishing-bot
+```sh
+npm run check
+cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
+npm run tauri build
 ```
 
-Enjoy automating your fishing sessions on macOS!
+Release output is in `target/release/`. Browser preview (`npm run dev`) only edits settings in memory. PNG inspection, screen capture and automation require the desktop app. The screenshot inspector does not send game input.
+
+To build only the macOS application bundle:
+
+```sh
+npm run tauri build -- --bundles app
+```
+
+Open `target/release/bundle/macos/Arcane Fishing Bot.app`. This is a local unsigned build.

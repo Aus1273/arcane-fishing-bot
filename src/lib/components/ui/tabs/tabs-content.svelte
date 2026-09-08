@@ -8,9 +8,10 @@
   export { className as class };
 
   const tabs = getContext<TabsContext>(TABS_CONTEXT);
+  const valueStore = tabs.value;
 </script>
 
-{#if $tabs.value === value}
+{#if $valueStore === value}
   <div class={cn('mt-4', className)} {...$$restProps}>
     <slot />
   </div>
