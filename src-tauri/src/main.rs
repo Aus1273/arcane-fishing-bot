@@ -1,3 +1,4 @@
+mod overlay_window;
 use arcane_fishing_bot_app::{
     config::{resolution_presets, BotConfig},
     diagnostics,
@@ -83,6 +84,7 @@ fn main() {
     let state = SharedState::new().expect("Could not load application settings/statistics");
     tauri::Builder::default()
         .manage(state)
+        .manage(overlay_window::OverlayState::default())
         .invoke_handler(tauri::generate_handler![
             get_config,
             get_stats,
@@ -92,7 +94,10 @@ fn main() {
             stop_session,
             calculate_timeout,
             inspect_screenshot,
-            capture_preview
+            capture_preview,
+            overlay_window::show_overlay,
+            overlay_window::hide_overlay,
+            overlay_window::overlay_visible
         ])
         .setup(|app| {
             let window = app.get_webview_window("main").expect("main window");
@@ -100,7 +105,17 @@ fn main() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            if matches!(event, tauri::WindowEvent::Destroyed) {
+                overlay_window::destroyed(window.app_handle(), window.label());
+            }
+            if window.label() != "main" {
+                return;
+            }
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if overlay_window::close(window.app_handle()).is_err() {
+                    api.prevent_close();
+                    return;
+                }
                 let state = window.state::<SharedState>();
                 if state.session.read().running {
                     api.prevent_close();

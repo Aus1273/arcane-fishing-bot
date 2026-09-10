@@ -42,3 +42,11 @@ ARCANE_SCREENSHOT_DIR='/path/to/original/screenshots' cargo test --release \
 ```
 
 Originals stay outside the repository. No live game input was performed during this verification.
+
+## On-screen test mode
+
+In the desktop app, open **Calibration > Show detection areas**. A transparent, click-through overlay draws a dashed screen boundary and labelled outlines: pink for the bite search, yellow for the catch heading, purple for Energy, cyan for the rod selection border and green for the food selection border. Narrow hotbar boxes are intentional: detection reads the highlighted border, not the whole slot.
+
+The overlay uses current settings, including unsaved edits, and the same display-origin and integer rounding as capture. It is a static visual guide, not live detection or a fishing simulation. Fishing, configuration writes and screenshot inspection are locked until the overlay closes, preventing its own colours from affecting analysis. Return to Calibration and choose **Hide detection areas**. Closing the control window also closes the overlay.
+
+macOS uses transparent windows with fullscreen auxiliary-space support. Windows exclusive fullscreen may suppress desktop overlays; borderless/windowed mode may be required. Live game fullscreen behaviour still requires verification. Hide and reopen the overlay after changing display arrangements or scaling.

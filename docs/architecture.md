@@ -59,3 +59,5 @@ The desktop shell now uses Tauri 2.11, with Svelte 5 and Vite 8. The main local 
 Dashboard, Calibration and Settings have separate views. Calibration results and unsaved settings survive navigation between them. Appearance is stored locally. The controller and saved settings format remain compatible with the preceding restructure.
 
 Use Node 20.19+ or 22.12+ (Node 24 is verified). Commit/use both lockfiles to keep the tested native and frontend dependency sets together. The local npm audit reported zero known advisories after this upgrade; that is not a complete security audit.
+
+The calibration overlay consists of pure geometry in `overlay.rs`, desktop window lifecycle in `overlay_window.rs`, and a separate read-only Svelte view. It holds the existing inspection reservation until its native window is destroyed, blocking automation and capture while coloured outlines are present. macOS transparency requires Tauri's `macos-private-api` feature; the current local desktop build is not an App Store distribution target.

@@ -44,3 +44,6 @@ export async function stopSession():Promise<void> {if(isTauri) await invoke('sto
 export async function inspectScreenshot(config:BotConfig,imageBase64:string):Promise<Preview> {return invoke('inspect_screenshot',{config,imageBase64});}
 export async function capturePreview(config:BotConfig):Promise<Preview> {return invoke('capture_preview',{config});}
 export function biteTimeout(lure:number):number {return Math.round(Math.min(180,Math.max(10,(lure<=1?3-2*lure:1.25-lure/3)*60+5))*1000);}
+export async function showOverlay(config:BotConfig):Promise<void> {if(!isTauri)throw new Error('Open the desktop app to show detection areas');await invoke('show_overlay',{config});}
+export async function hideOverlay():Promise<void> {if(isTauri)await invoke('hide_overlay');}
+export async function overlayVisible():Promise<boolean> {return isTauri?invoke('overlay_visible'):false;}
