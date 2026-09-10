@@ -5,6 +5,7 @@ pub mod diagnostics;
 pub mod engine;
 pub mod input;
 pub mod ocr;
+pub mod overlay;
 pub mod replay;
 pub mod runtime;
 pub mod storage;

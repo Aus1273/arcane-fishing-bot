@@ -306,3 +306,33 @@ fn write_log(log: &mut Option<BufWriter<File>>, ms: u64, text: &str) {
         let _ = log.flush();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn inspection_guard_blocks_input_and_edits_until_released() {
+        let config = crate::config::macbook_profile();
+        let shared = SharedState {
+            config: Arc::new(RwLock::new(config.clone())),
+            stats: Arc::new(RwLock::new(LifetimeStats::default())),
+            session: Arc::new(RwLock::new(SessionState {
+                running: false,
+                controller: Controller::new(config.clone()),
+                elapsed_ms: 0,
+                observation: None,
+            })),
+            cancelled: Arc::new(AtomicBool::new(true)),
+            activity: Arc::new(Mutex::new(Activity::default())),
+        };
+        let guard = shared.reserve_inspection().unwrap();
+        assert!(shared
+            .start(Arc::new(|_| panic!("must not start input")))
+            .is_err());
+        assert!(shared.save_config(config).is_err());
+        assert!(shared.reserve_inspection().is_err());
+        assert!(shared.cancelled.load(Ordering::SeqCst));
+        drop(guard);
+        assert!(shared.reserve_inspection().is_ok());
+    }
+}
