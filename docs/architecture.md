@@ -1,6 +1,6 @@
 # Automation architecture
 
-The active app stays on Tauri 2. The main change is a deterministic controller with explicit phases, separated from screenshots, OCR and native input. The previous monolith is preserved under `legacy/`.
+The active app stays on Tauri 2. The portable `crates/fishing-core` crate contains the deterministic controller, detectors, configuration, storage and replay. Desktop modules re-export the existing public paths for compatibility. The previous monolith is preserved under `legacy/`.
 
 ```mermaid
 flowchart LR
@@ -25,8 +25,11 @@ flowchart LR
 | `input.rs` | Native input and foreground Roblox checks on macOS/Windows |
 | `diagnostics.rs` | Read-only PNG/live-capture inspection and crop previews |
 | `config.rs`, `storage.rs` | Validated settings, profiles and atomic storage |
-| `replay.rs`, `bin/replay.rs` | Offline observation scenarios and expected-action verification |
+| Core `replay.rs`, `bin/fishing-core-cli.rs` | Offline observation scenarios and expected-action verification |
 | `main.rs` | Tauri commands and application lifecycle |
+| `readiness.rs` | Non-prompting permission, profile, OCR, focus and emergency-stop checks |
+| `recording.rs` | Bounded optional session evidence and exact-timestamp offline replay |
+| `crates/fishing-core/src/protocol.rs` | Versioned JSON interface used by the Swift prototype |
 
 The frontend separates session display, calibration inspection, settings, and typed IPC. Browser preview cannot run automation or pretend that native operations succeeded.
 
@@ -35,6 +38,8 @@ The frontend separates session display, calibration inspection, settings, and ty
 The normal flow is startup → rod reset/selection → ready → casting → waiting for bite → reeling → catch confirmation → optional Energy check → cooldown. Feeding explicitly selects food, verifies selection, clicks once, verifies increased capacity twice, and restores the rod before continuing.
 
 - Only the control thread owns native input. It emits at most one action per step; late ticks do not cause bursts of missed clicks.
+- Observe-only follows exactly the same controller, but its input factory is never invoked. Its catches, feeding and elapsed time never modify lifetime statistics.
+- The global Control + Shift + F12 shortcut cancels sessions even when the game has focus. Registration failure blocks automation. A single-instance plugin prevents independent desktop controllers.
 - Input checks Roblox foreground identity immediately before execution. Focus loss pauses; resuming requires a new session.
 - Observations have increasing sequence numbers and capture timestamps. Old, future-dated or repeated frames cannot authorize fresh confirmations. A bite flag must have actually been measured before it can authorize a cast.
 - Each verification phase has a hard deadline. Fishing timeouts attempt a bounded rod reset; unresolved selection/feeding failures pause instead of repeatedly clicking.
@@ -42,6 +47,9 @@ The normal flow is startup → rod reset/selection → ready → casting → wai
 - Feeding compares absolute Energy capacity with an explicit threshold. The usable/capacity ratio is not a measure of remaining food reserve. Invalid or unsupported readings fail closed.
 - Settings are validated and frozen during a session. Inspection cannot overlap automation or configuration changes.
 - The observation worker keeps only the latest frame result, avoiding a growing backlog. OCR runs only when needed; reeling continues on a separate controller schedule.
+- Capture/analysis latency and frame age are shown in the UI. State is published on transitions or every 250 ms; the controller still ticks every 10 ms. A slow observation does not build a queue or add another fixed delay after processing.
+- Energy OCR has its own error field. Optional monitoring can continue without feeding on OCR failure; feeding and general capture errors remain blocking. Finder-compatible discovery checks normal install locations and verifies English data.
+- Opt-in recordings retain the first 30,000 raw controller ticks with original capture sequences and timestamps. Session timelines retain 200 significant events. JSON replay accepts at most 32 MiB and 30,000 frames, validates configuration/version/monotonic time, and compares actual phase/actions/counters with expected values. A settings override reruns observations without expected-value comparison; it cannot recompute image detectors.
 - Stop requests cancellation. Orderly shutdown finalizes statistics; periodic 30-second checkpoints limit potential loss from an unexpected exit. OCR can be killed; synchronous OS capture cannot.
 
 ## Verification and remaining work

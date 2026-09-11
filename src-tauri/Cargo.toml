@@ -5,6 +5,7 @@ edition = "2021"
 default-run = "arcane-fishing-bot-app"
 
 [dependencies]
+fishing-core = { path = "../crates/fishing-core" }
 anyhow = "1"
 tempfile = "3"
 serde = { version = "1", features = ["derive"] }
@@ -13,6 +14,9 @@ directories = "5"
 parking_lot = "0.12"
 chrono = { version = "0.4", features = ["serde"] }
 tauri = { version = "2.11.5", features = ["macos-private-api"] }
+tauri-plugin-single-instance = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-dialog = "2"
 image = "0.24"
 screenshots = "0.8"
 enigo = "0.4.2"

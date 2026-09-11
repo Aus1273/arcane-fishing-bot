@@ -33,6 +33,14 @@ pub fn observe(
             "Screenshot dimensions do not match the selected profile"
         ));
     }
+    let energy = needs
+        .energy
+        .then(|| ocr::read_energy(&crop_frame(image, config.hunger_region), cancel));
+    let (energy, energy_error) = match energy {
+        Some(Ok(value)) => (Some(value), None),
+        Some(Err(error)) => (None, Some(error.to_string())),
+        None => (None, None),
+    };
     Ok(Observation {
         bite_checked: needs.bite,
         bite: needs.bite && detection::has_bite(&crop_frame(image, config.red_region), config),
@@ -45,20 +53,15 @@ pub fn observe(
             image,
             rod_selection_region(calibration, config.food_slot),
         )),
-        energy: if needs.energy {
-            Some(ocr::read_energy(
-                &crop_frame(image, config.hunger_region),
-                cancel,
-            )?)
-        } else {
-            None
-        },
+        energy,
+        energy_error,
         ..Observation::default()
     })
 }
 
 #[derive(Serialize)]
 pub struct Preview {
+    pub frame_data_url: String,
     pub observation: Observation,
     pub elapsed_ms: u64,
     pub regions: Vec<RegionPreview>,
@@ -98,7 +101,7 @@ pub fn inspect_frame(image: RgbaImage, config: &BotConfig) -> Result<Preview> {
     )?;
     match ocr::read_energy(&crop_frame(&image, config.hunger_region), &cancel) {
         Ok(value) => observation.energy = Some(value),
-        Err(error) => observation.error = Some(error.to_string()),
+        Err(error) => observation.energy_error = Some(error.to_string()),
     }
     let mut regions = vec![];
     for (name, region) in [
@@ -125,7 +128,13 @@ pub fn inspect_frame(image: RgbaImage, config: &BotConfig) -> Result<Preview> {
             ),
         });
     }
+    let mut full_image = Cursor::new(Vec::new());
+    DynamicImage::ImageRgba8(image).write_to(&mut full_image, ImageOutputFormat::Png)?;
     Ok(Preview {
+        frame_data_url: format!(
+            "data:image/png;base64,{}",
+            STANDARD.encode(full_image.into_inner())
+        ),
         observation,
         regions,
         elapsed_ms: started.elapsed().as_millis() as u64,

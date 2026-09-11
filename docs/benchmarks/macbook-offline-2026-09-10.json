@@ -1,0 +1,251 @@
+{
+  "build": "release",
+  "images": [
+    {
+      "detection": {
+        "p50_ms": 7.347,
+        "p95_ms": 7.857,
+        "samples": 25
+      },
+      "dimensions": [
+        3024,
+        1964
+      ],
+      "file": "1..png",
+      "observation": {
+        "bite": false,
+        "bite_checked": true,
+        "captured_at_ms": 0,
+        "caught": false,
+        "energy": null,
+        "energy_error": null,
+        "error": null,
+        "food_selected": false,
+        "rod_selected": false,
+        "sequence": 0
+      },
+      "ocr": {
+        "p50_ms": 63.216,
+        "p95_ms": 147.57,
+        "results": [
+          {
+            "Ok": {
+              "capacity": 956,
+              "usable": 956
+            }
+          },
+          {
+            "Ok": {
+              "capacity": 956,
+              "usable": 956
+            }
+          },
+          {
+            "Ok": {
+              "capacity": 956,
+              "usable": 956
+            }
+          },
+          {
+            "Ok": {
+              "capacity": 956,
+              "usable": 956
+            }
+          },
+          {
+            "Ok": {
+              "capacity": 956,
+              "usable": 956
+            }
+          }
+        ],
+        "samples": 5
+      }
+    },
+    {
+      "detection": {
+        "p50_ms": 6.162,
+        "p95_ms": 6.565,
+        "samples": 25
+      },
+      "dimensions": [
+        3024,
+        1964
+      ],
+      "file": "2..png",
+      "observation": {
+        "bite": true,
+        "bite_checked": true,
+        "captured_at_ms": 0,
+        "caught": false,
+        "energy": null,
+        "energy_error": null,
+        "error": null,
+        "food_selected": false,
+        "rod_selected": true,
+        "sequence": 0
+      },
+      "ocr": {
+        "p50_ms": 62.375,
+        "p95_ms": 63.128,
+        "results": [
+          {
+            "Ok": {
+              "capacity": 953,
+              "usable": 953
+            }
+          },
+          {
+            "Ok": {
+              "capacity": 953,
+              "usable": 953
+            }
+          },
+          {
+            "Ok": {
+              "capacity": 953,
+              "usable": 953
+            }
+          },
+          {
+            "Ok": {
+              "capacity": 953,
+              "usable": 953
+            }
+          },
+          {
+            "Ok": {
+              "capacity": 953,
+              "usable": 953
+            }
+          }
+        ],
+        "samples": 5
+      }
+    },
+    {
+      "detection": {
+        "p50_ms": 8.369,
+        "p95_ms": 8.772,
+        "samples": 25
+      },
+      "dimensions": [
+        3024,
+        1964
+      ],
+      "file": "3.png",
+      "observation": {
+        "bite": false,
+        "bite_checked": true,
+        "captured_at_ms": 0,
+        "caught": false,
+        "energy": null,
+        "energy_error": null,
+        "error": null,
+        "food_selected": false,
+        "rod_selected": true,
+        "sequence": 0
+      },
+      "ocr": {
+        "p50_ms": 62.289,
+        "p95_ms": 63.309,
+        "results": [
+          {
+            "Ok": {
+              "capacity": 954,
+              "usable": 954
+            }
+          },
+          {
+            "Ok": {
+              "capacity": 954,
+              "usable": 954
+            }
+          },
+          {
+            "Ok": {
+              "capacity": 954,
+              "usable": 954
+            }
+          },
+          {
+            "Ok": {
+              "capacity": 954,
+              "usable": 954
+            }
+          },
+          {
+            "Ok": {
+              "capacity": 954,
+              "usable": 954
+            }
+          }
+        ],
+        "samples": 5
+      }
+    },
+    {
+      "detection": {
+        "p50_ms": 8.46,
+        "p95_ms": 8.891,
+        "samples": 25
+      },
+      "dimensions": [
+        3024,
+        1964
+      ],
+      "file": "4..png",
+      "observation": {
+        "bite": false,
+        "bite_checked": true,
+        "captured_at_ms": 0,
+        "caught": true,
+        "energy": null,
+        "energy_error": null,
+        "error": null,
+        "food_selected": false,
+        "rod_selected": true,
+        "sequence": 0
+      },
+      "ocr": {
+        "p50_ms": 63.28,
+        "p95_ms": 64.347,
+        "results": [
+          {
+            "Ok": {
+              "capacity": 954,
+              "usable": 954
+            }
+          },
+          {
+            "Ok": {
+              "capacity": 954,
+              "usable": 954
+            }
+          },
+          {
+            "Ok": {
+              "capacity": 954,
+              "usable": 954
+            }
+          },
+          {
+            "Ok": {
+              "capacity": 954,
+              "usable": 954
+            }
+          },
+          {
+            "Ok": {
+              "capacity": 954,
+              "usable": 954
+            }
+          }
+        ],
+        "samples": 5
+      }
+    }
+  ],
+  "scope": "Offline normalized pixels; PNG decode and live capture excluded; Tesseract includes preprocess and child startup",
+  "version": 1
+}

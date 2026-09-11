@@ -7,7 +7,7 @@ The root Cargo workspace builds the Tauri 2 application. Historical code is unde
 - Rust (`cargo` and `rustc`).
 - Node.js and npm.
 - Xcode Command Line Tools: `xcode-select --install`.
-- Tesseract with English data: `brew install tesseract`.
+- Tesseract with English data for Energy OCR: `brew install tesseract`. It is optional when Energy monitoring and automatic feeding are disabled.
 
 From the project root:
 
@@ -16,16 +16,17 @@ npm ci
 npm run tauri dev
 ```
 
-For automation, grant Accessibility and Screen Recording access in System Settings → Privacy & Security. Select and inspect the correct profile before starting. Focus Roblox during the startup delay. Losing focus pauses the controller.
+For automation, grant Accessibility and Screen Recording access in System Settings → Privacy & Security. Observe-only needs Screen Recording but does not need Accessibility or create an input device. Select and inspect the correct profile, save it and check readiness before starting. Focus Roblox during the startup delay. Losing focus pauses the controller. Control + Shift + F12 is the global emergency stop.
 
 ```sh
 npm run check
+npm test
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 npm run tauri build
 ```
 
-Release output is in `target/release/`. Browser preview (`npm run dev`) only edits settings in memory. PNG inspection, screen capture and automation require the desktop app. The screenshot inspector does not send game input.
+Release output is in `target/release/`. Browser preview (`npm run dev`) edits settings in memory and supports local screenshot region editing. Detector/OCR inspection, screen capture and automation require the desktop app. The screenshot inspector does not send game input.
 
 To build only the macOS application bundle:
 

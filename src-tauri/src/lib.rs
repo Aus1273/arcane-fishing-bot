@@ -1,11 +1,9 @@
 pub mod capture;
-pub mod config;
-pub mod detection;
 pub mod diagnostics;
-pub mod engine;
 pub mod input;
 pub mod ocr;
 pub mod overlay;
-pub mod replay;
+pub mod readiness;
+pub mod recording;
 pub mod runtime;
-pub mod storage;
+pub use fishing_core::{config, detection, engine, replay, storage};
