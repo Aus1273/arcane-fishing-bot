@@ -312,7 +312,9 @@ impl Controller {
                 self.consecutive_recoveries = 0;
                 self.catch_armed = false;
                 if self.config.monitors_energy()
-                    && self.fish_caught % u64::from(self.config.fish_per_feed) == 0
+                    && self
+                        .fish_caught
+                        .is_multiple_of(u64::from(self.config.fish_per_feed))
                 {
                     self.enter(Phase::CheckEnergy, now, 5000, "Reading Energy capacity");
                 } else {

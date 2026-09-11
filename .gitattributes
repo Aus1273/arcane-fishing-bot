@@ -1,0 +1,8 @@
+# Keep source and configuration files consistent on every platform, including
+# Windows checkouts with core.autocrlf=true. Prettier expects LF line endings.
+* text=auto eol=lf
+
+# Application icons are binary and must never undergo line-ending conversion.
+*.png binary
+*.ico binary
+*.icns binary
