@@ -78,6 +78,13 @@ pub fn read_energy(image: &RgbaImage, cancelled: &AtomicBool) -> Result<EnergyRe
 }
 
 fn bounded_output(command: &mut Command, cancelled: &AtomicBool) -> Result<String> {
+    // OCR is a background app task; do not flash a console window on Windows.
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        use windows_sys::Win32::System::Threading::CREATE_NO_WINDOW;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
     // File-backed output avoids a child blocking on a full stdout pipe.
     let output_file = tempfile::tempfile()?;
     let mut child = command

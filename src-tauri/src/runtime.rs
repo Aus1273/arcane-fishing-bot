@@ -13,6 +13,7 @@ use anyhow::{anyhow, Result};
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::VecDeque,
     fs::File,
     io::{BufWriter, Write},
     sync::{
@@ -52,7 +53,7 @@ pub struct SessionState {
     pub controller: Controller,
     pub elapsed_ms: u64,
     pub observation: Option<Observation>,
-    pub events: Vec<SessionEvent>,
+    pub events: VecDeque<SessionEvent>,
     pub metrics: SessionMetrics,
     pub recording_enabled: bool,
     pub recording_frames: usize,
@@ -65,7 +66,7 @@ impl SessionState {
             controller: Controller::new(config),
             elapsed_ms: 0,
             observation: None,
-            events: vec![],
+            events: VecDeque::new(),
             metrics: SessionMetrics::default(),
             recording_enabled: record,
             recording_frames: 0,
@@ -331,9 +332,9 @@ impl SharedState {
                     {
                         let mut session = shared.session.write();
                         if session.events.len() >= 200 {
-                            session.events.remove(0);
+                            session.events.pop_front();
                         }
-                        session.events.push(SessionEvent {
+                        session.events.push_back(SessionEvent {
                             at_ms: now,
                             phase: controller.phase,
                             reason: controller.reason.clone(),

@@ -1,7 +1,5 @@
-/target
-node_modules
-dist
-.svelte-kit
-src-tauri/target
-
-/legacy/egui/target
+/target/
+/node_modules/
+/dist/
+/src-tauri/target/
+/src-tauri/gen/
