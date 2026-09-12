@@ -4,19 +4,19 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "start": "tauri dev",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "compile": "npm run check && tauri build",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test": "node --test tests/frontend/*.test.mjs",
     "format": "prettier --write src tests/frontend *.json *.ts *.js *.cjs",
-    "format:check": "prettier --check src tests/frontend *.json *.ts *.js *.cjs"
+    "format:check": "prettier --check src tests/frontend *.json *.ts *.js *.cjs",
+    "package": "npm run check && tauri build"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.11.1",
-    "tailwind-merge": "^2.5.2"
+    "@tauri-apps/api": "^2.11.1"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.3.0",

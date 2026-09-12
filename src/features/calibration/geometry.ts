@@ -1,4 +1,4 @@
-import type { Region } from './ipc';
+import type { Region } from '../../lib/ipc';
 export type Point = { x: number; y: number };
 export function boundRegion(region: Region, width: number, height: number): Region {
   const w = Math.min(Math.max(1, Math.round(region.width)), width);

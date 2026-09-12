@@ -4,7 +4,7 @@ import test from 'node:test';
 import ts from 'typescript';
 // Exercise the same coordinate functions used by the pointer editor, without a browser.
 const source = await readFile(
-  new URL('../../src/lib/calibrationGeometry.ts', import.meta.url),
+  new URL('../../src/features/calibration/geometry.ts', import.meta.url),
   'utf8',
 );
 const js = ts.transpileModule(source, {

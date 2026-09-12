@@ -1,71 +1,46 @@
-# Automation architecture
+# Application architecture
 
-The active app stays on Tauri 2. The portable `crates/fishing-core` crate contains the deterministic controller, detectors, configuration, storage and replay. Desktop modules re-export the existing public paths for compatibility. The previous monolith is preserved under `legacy/`.
+There is one production application and one portable engine. The desktop app owns windows, capture and input; the engine decides what to do from timestamped observations. The engine can run in tests and the replay CLI without any desktop permissions.
 
-```mermaid
-flowchart LR
-    UI[Svelte settings and session display] --> Runtime[Session runtime]
-    Capture[Screen capture and OCR] --> Observation[Latest timestamped observation]
-    Observation --> Controller[Deterministic controller]
-    Runtime --> Controller
-    Controller --> Input[Focus-checked native input]
-    Controller --> UI
-    Replay[Recorded observations] --> Controller
-```
+## Code ownership
 
-## Responsibilities
-
-| Module | Responsibility |
+| Location | Owns |
 | --- | --- |
-| `engine.rs` | State transitions, deadlines, confirmations, recovery and action requests |
-| `runtime.rs` | Session lifecycle, separate observation/control threads, cancellation and statistics |
-| `capture.rs` | Main-display capture, Retina mapping and reference-size normalization |
-| `detection.rs` | Bite, catch, selection-border detection and Energy parsing |
-| `ocr.rs` | Tesseract execution with cancellation and a 2.5-second limit |
-| `input.rs` | Native input and foreground Roblox checks on macOS/Windows |
-| `diagnostics.rs` | Read-only PNG/live-capture inspection and crop previews |
-| `config.rs`, `storage.rs` | Validated settings, profiles and atomic storage |
-| Core `replay.rs`, `bin/fishing-core-cli.rs` | Offline observation scenarios and expected-action verification |
-| `main.rs` | Tauri commands and application lifecycle |
-| `readiness.rs` | Non-prompting permission, profile, OCR, focus and emergency-stop checks |
-| `recording.rs` | Bounded optional session evidence and exact-timestamp offline replay |
-| `crates/fishing-core/src/protocol.rs` | Versioned JSON interface used by the Swift prototype |
+| `src/App.svelte` | App navigation, shared configuration, session controls, readiness and saving |
+| `src/features/session/` | Session summary, diagnostics, recording import/export and replay comparison |
+| `src/features/calibration/` | Profiles, screenshot editor, detector tuning, geometry and read-only overlay view |
+| `src/features/settings/` | Fishing, Energy/food and runtime timing settings |
+| `src/lib/ipc.ts` | Typed frontend/native command boundary and explicitly limited browser preview |
+| `src/lib/Button.svelte`, `src/app.css` | Shared button, design tokens and genuinely shared styles |
+| `src-tauri/src/main.rs` | Native lifecycle, plugin setup, command registration and shutdown |
+| `src-tauri/src/commands.rs` | Frontend command adapters; delegates validation and session ownership |
+| `src-tauri/src/runtime.rs` | Worker lifecycle, cancellation, bounded event history and statistics |
+| `src-tauri/src/capture.rs`, `input.rs`, `ocr.rs` | OS adapters and permission-sensitive work |
+| `src-tauri/src/diagnostics.rs`, `readiness.rs`, `recording.rs` | Inspection, prerequisites and replay evidence |
+| `src-tauri/src/overlay.rs`, `overlay_window.rs` | Overlay geometry and native window ownership |
+| `crates/fishing-core/` | Controller, detectors, validated configuration, atomic storage and offline replay |
+| `configs/`, `tests/`, `src-tauri/tests/`, `crates/fishing-core/tests/` | Profile assets and regression coverage |
 
-The frontend separates session display, calibration inspection, settings, and typed IPC. Browser preview cannot run automation or pretend that native operations succeeded.
+Screen styles live inside their Svelte feature components. Calibration settings have one editing surface; they are not duplicated in Settings. Session and calibration components stay mounted across navigation to retain local screenshots, selected evidence and imported recordings. Expensive diagnostic markup is only rendered when expanded.
 
-## Control contracts
+To change a feature, start in its directory. Add a native command in `commands.rs` and its typed wrapper in `ipc.ts` only when the feature actually needs native work. Put deterministic detection or control logic in `fishing-core`, with an offline regression. There is no plugin system, dependency-injection framework or generic page registry to maintain.
 
-The normal flow is startup → rod reset/selection → ready → casting → waiting for bite → reeling → catch confirmation → optional Energy check → cooldown. Feeding explicitly selects food, verifies selection, clicks once, verifies increased capacity twice, and restores the rod before continuing.
+## Session contract
 
-- Only the control thread owns native input. It emits at most one action per step; late ticks do not cause bursts of missed clicks.
-- Observe-only follows exactly the same controller, but its input factory is never invoked. Its catches, feeding and elapsed time never modify lifetime statistics.
-- The global Control + Shift + F12 shortcut cancels sessions even when the game has focus. Registration failure blocks automation. A single-instance plugin prevents independent desktop controllers.
-- Input checks Roblox foreground identity immediately before execution. Focus loss pauses; resuming requires a new session.
-- Observations have increasing sequence numbers and capture timestamps. Old, future-dated or repeated frames cannot authorize fresh confirmations. A bite flag must have actually been measured before it can authorize a cast.
-- Each verification phase has a hard deadline. Fishing timeouts attempt a bounded rod reset; unresolved selection/feeding failures pause instead of repeatedly clicking.
-- A catch needs two distinct positive frames at least 100 ms apart. An existing notification must disappear before it can count as another catch.
-- Feeding compares absolute Energy capacity with an explicit threshold. The usable/capacity ratio is not a measure of remaining food reserve. Invalid or unsupported readings fail closed.
-- Settings are validated and frozen during a session. Inspection cannot overlap automation or configuration changes.
-- The observation worker keeps only the latest frame result, avoiding a growing backlog. OCR runs only when needed; reeling continues on a separate controller schedule.
-- Capture/analysis latency and frame age are shown in the UI. State is published on transitions or every 250 ms; the controller still ticks every 10 ms. A slow observation does not build a queue or add another fixed delay after processing.
-- Energy OCR has its own error field. Optional monitoring can continue without feeding on OCR failure; feeding and general capture errors remain blocking. Finder-compatible discovery checks normal install locations and verifies English data.
-- Opt-in recordings retain the first 30,000 raw controller ticks with original capture sequences and timestamps. Session timelines retain 200 significant events. JSON replay accepts at most 32 MiB and 30,000 frames, validates configuration/version/monotonic time, and compares actual phase/actions/counters with expected values. A settings override reruns observations without expected-value comparison; it cannot recompute image detectors.
-- Stop requests cancellation. Orderly shutdown finalizes statistics; periodic 30-second checkpoints limit potential loss from an unexpected exit. OCR can be killed; synchronous OS capture cannot.
+The controller progresses through rod reset/selection, casting, bite wait, reeling, catch confirmation and optional feeding. A catch requires fresh confirmation; feeding requires an absolute capacity increase and rod restoration. Deadlines and bounded recovery prevent indefinite blind input.
 
-## Verification and remaining work
+- Observe mode never constructs a native input device or updates lifetime fishing statistics.
+- Only the control thread owns input. Each action rechecks Roblox foreground identity. Focus loss pauses the session; restart is explicit.
+- Cancellation is preserved during preflight and shutdown. Ctrl + Shift + F12 stops the controller and closes the overlay. Failed shortcut registration blocks automation.
+- The capture worker keeps only the latest timestamped observation. The controller ticks every 10 ms; UI updates occur on transitions or every 250 ms. Late ticks do not generate catch-up click bursts.
+- Old, repeated or future-dated observations cannot authorize new confirmations. Capture failures remain blocking. Optional Energy OCR can fail independently; feeding always requires verified readings.
+- OCR is cancellable and bounded to 2.5 seconds. OS capture already in progress may be uninterruptible, so the observer owns no input.
+- A 200-entry deque bounds event history without shifting the whole list when an event expires. Optional recordings retain the first 30,000 original controller ticks. JSON replay is limited to 32 MiB and preserves capture sequence/timing.
+- Inspection and the wireframe overlay reserve the runtime, preventing overlapping capture, input or configuration writes. The overlay holds its reservation until its native window is destroyed.
+- Settings are validated and frozen during a session. Existing serialized compatibility fields and OS data directories are retained. Statistics checkpoint every 30 seconds and at orderly shutdown.
 
-Controller tests cover normal cycles, lingering notifications, stale observations, focus loss, cancellation in every phase, deadlines, recovery limits, rod loss and feeding confirmation. JSON replay scenarios run the same production controller without OS input. Original screenshot tests cover bite/catch/selection/Energy, relocated bite markers, simulated Retina crops, and the PNG inspector.
+## Build boundary
 
-These tests do not prove that the game accepts the reset/cast/click sequence or that the provisional timing works under load. Full-frame capture makes each observation coherent, but its real latency still needs measurement. Windows requires native compilation and runtime validation. Live macOS capture/input, low-capacity Energy, consumed food, altered camera views and notification animations need recorded sessions or supervised testing.
+`npm start` launches Tauri; `npm run package` builds it. Tauri embeds the frontend from `dist/`. Rust output goes to `target/`; no executable is generated into a source directory. Cargo's `src/bin` and `examples` contain developer-tool source and are not additional production apps.
 
-Start with the read-only calibration inspector, then a short supervised fishing session with automatic feeding disabled. Tune from recorded evidence before enabling unattended operation. Keep the existing calibrated detector assets; further rebuilding should be driven by failures observed in these checks.
-
-## Desktop upgrade (2026-09-08)
-
-The desktop shell now uses Tauri 2.11, with Svelte 5 and Vite 8. The main local window may subscribe to controller events; no broad filesystem, shell or remote-origin permissions are enabled. A content security policy restricts scripts and network connections. Custom Rust commands retain configuration validation and session ownership checks.
-
-Dashboard, Calibration and Settings have separate views. Calibration results and unsaved settings survive navigation between them. Appearance is stored locally. The controller and saved settings format remain compatible with the preceding restructure.
-
-Use Node 20.19+ or 22.12+ (Node 24 is verified). Commit/use both lockfiles to keep the tested native and frontend dependency sets together. The local npm audit reported zero known advisories after this upgrade; that is not a complete security audit.
-
-The calibration overlay consists of pure geometry in `overlay.rs`, desktop window lifecycle in `overlay_window.rs`, and a separate read-only Svelte view. It holds the existing inspection reservation until its native window is destroyed, blocking automation and capture while coloured outlines are present. macOS transparency requires Tauri's `macos-private-api` feature; the current local desktop build is not an App Store distribution target.
+Historical implementations and the native experiment remain recoverable in Git history; see [development](development.md). Builds, deterministic tests and screenshot replay establish only their tested behavior. Live-game acceptance remains a separate supervised check.

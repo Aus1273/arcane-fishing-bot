@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Region } from '../../ipc';
+  import type { Region } from '../../lib/ipc';
   const keys: (keyof Region)[] = ['x', 'y', 'width', 'height'];
   export let title: string;
   export let region: Region;

@@ -10,11 +10,13 @@
     type BotConfig,
     type Preview,
     type Region,
-  } from '../ipc';
-  import { boundRegion, drawnRegion, editRegion, type Point } from '../calibrationGeometry';
-  import Button from './ui/button.svelte';
-  import RegionEditor from './settings/RegionEditor.svelte';
+    type ResolutionPreset,
+  } from '../../lib/ipc';
+  import { boundRegion, drawnRegion, editRegion, type Point } from './geometry';
+  import Button from '../../lib/Button.svelte';
+  import RegionEditor from './RegionEditor.svelte';
   export let config: BotConfig;
+  export let presets: Record<string, ResolutionPreset>;
   export let disabled = false;
   export let busy = false;
   export let changed: () => void;
@@ -98,7 +100,7 @@
       selected === 'hotbar' ? c.frame_width - (lastSlot - 1) * c.hotbar_slot_stride : c.frame_width;
     if (availableWidth < 1) {
       error =
-        'Hotbar spacing places the selected slots outside the frame. Reduce spacing in Settings.';
+        'Hotbar spacing places the selected slots outside the frame. Reduce spacing in detector settings above.';
       return;
     }
     const bounded = boundRegion(next, availableWidth, c.frame_height);
@@ -332,14 +334,127 @@
     stale = true;
     changed();
   }
+  function choose(event: Event) {
+    const name = (event.target as HTMLSelectElement).value;
+    const preset = presets[name];
+    if (!preset) return;
+    config = {
+      ...config,
+      region_preset: name,
+      red_region: { ...preset.red_region },
+      yellow_region: { ...preset.yellow_region },
+      hunger_region: { ...preset.hunger_region },
+      calibration: structuredClone(preset.settings?.calibration ?? null),
+    };
+    const settings = preset.settings;
+    if (settings) {
+      config = {
+        ...config,
+        rod_slot: settings.rod_slot ?? config.rod_slot,
+        food_slot: settings.food_slot ?? config.food_slot,
+        auto_feed_enabled: false,
+        energy_capacity_feed_below: settings.energy_capacity_feed_below ?? 0,
+        startup_delay_ms: settings.startup_delay_ms ?? config.startup_delay_ms,
+      };
+    }
+    changed();
+  }
 </script>
+
+<section class="surface profile-settings">
+  <fieldset disabled={disabled || busy}>
+    <h2>Screen profile</h2>
+    <label class="block text-sm"
+      >Screen profile
+      <select
+        class="mt-2 w-full rounded border border-input bg-background p-2"
+        value={config.region_preset}
+        on:change={choose}
+      >
+        {#if !presets[config.region_preset]}<option>{config.region_preset}</option>{/if}
+        {#each Object.keys(presets) as name}<option value={name}>{name}</option>{/each}
+      </select>
+    </label>
+    {#if config.calibration}
+      <p class="text-sm text-muted-foreground">
+        Calibrated for {config.calibration.frame_width} × {config.calibration.frame_height} screenshots
+        on the main display. Keep the same fullscreen HUD layout. Inspect a screenshot before running.
+      </p>
+    {:else}<p class="text-sm text-amber-300">
+        This profile needs hotbar calibration before it can run. Select a calibrated profile.
+      </p>{/if}
+    {#if config.calibration}
+      <details class="rounded-lg border p-4">
+        <summary class="cursor-pointer text-sm">Detector and hotbar calibration</summary>
+        <div class="mt-4 grid gap-3 sm:grid-cols-2">
+          <label class="text-sm"
+            >Bite tolerance<input
+              class="field"
+              type="number"
+              min="0"
+              max="255"
+              bind:value={config.calibration.bite_tolerance}
+              on:input={changed}
+            /></label
+          >
+          <label class="text-sm"
+            >Bite minimum pixels<input
+              class="field"
+              type="number"
+              min="1"
+              bind:value={config.calibration.bite_min_pixels}
+              on:input={changed}
+            /></label
+          >
+          <label class="text-sm"
+            >Catch tolerance<input
+              class="field"
+              type="number"
+              min="0"
+              max="255"
+              bind:value={config.calibration.catch_tolerance}
+              on:input={changed}
+            /></label
+          >
+          <label class="text-sm"
+            >Catch minimum pixels<input
+              class="field"
+              type="number"
+              min="1"
+              bind:value={config.calibration.catch_min_pixels}
+              on:input={changed}
+            /></label
+          >
+          {#each ['X', 'Y', 'Width', 'Height'] as label, i}<label class="text-sm"
+              >First hotbar slot border {label}<input
+                class="field"
+                type="number"
+                min="0"
+                bind:value={config.calibration.hotbar_first_slot[i]}
+                on:input={changed}
+              /></label
+            >{/each}
+          <label class="text-sm"
+            >Hotbar slot spacing<input
+              class="field"
+              type="number"
+              min="1"
+              bind:value={config.calibration.hotbar_slot_stride}
+              on:input={changed}
+            /></label
+          >
+        </div>
+      </details>
+    {/if}
+  </fieldset>
+</section>
 
 <div class="calibration-workspace">
   <section class="surface">
     <div class="section-heading">
       <div>
         <p class="eyebrow">Screenshot workspace</p>
-        <h2>Make every detection visible</h2>
+        <h2>Screenshot calibration</h2>
       </div>
       <span class="small-badge">Local images only</span>
     </div>
@@ -502,7 +617,7 @@
     </section>
   {:else}<section class="surface empty-state calibration-empty">
       <span class="empty-icon" aria-hidden="true">▧</span>
-      <h3>Your game, with visible detection regions</h3>
+      <h3>No screenshot loaded</h3>
       <p>
         Load a full-resolution screenshot to place the bite, catch and Energy regions. The rod and
         food boxes follow the hotbar calibration.
@@ -546,3 +661,323 @@
       </p>
     </section>{/if}
 </div>
+
+<style>
+  .tool-picker input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+  }
+  .tool-picker label:has(input:focus-visible) {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
+  }
+  .calibration-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 18px;
+  }
+  .legend {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 20px;
+    margin: 25px auto 0;
+    font-size: 10px;
+    color: hsl(var(--muted-foreground));
+  }
+  .legend span {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .legend i {
+    width: 7px;
+    height: 7px;
+    border-radius: 2px;
+  }
+  .calibration-empty {
+    padding: 62px 20px;
+  }
+  .editor-panel {
+    padding: 0;
+    overflow: hidden;
+  }
+  .editor-toolbar {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid hsl(var(--border));
+  }
+  .editor-toolbar > div {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+  }
+  .editor-toolbar strong {
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .editor-toolbar label {
+    font-size: 11px;
+    color: hsl(var(--muted-foreground));
+  }
+  .editor-toolbar select {
+    margin-left: 8px;
+  }
+  .editor-panel > .warning-note {
+    margin: 12px 20px;
+  }
+  .region-toolbar {
+    padding: 14px 18px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .region-tabs {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  .region-tabs button {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    font-size: 10px;
+    color: hsl(var(--muted-foreground));
+  }
+  .region-tabs button span {
+    display: block;
+    width: 6px;
+    height: 6px;
+    border: 1px solid var(--area);
+  }
+  .region-tabs button.selected {
+    border-color: var(--area);
+    color: hsl(var(--foreground));
+    background: #ffffff0a;
+  }
+  .tool-picker {
+    display: flex;
+    gap: 1px;
+    align-items: center;
+    font-size: 10px;
+    background: hsl(var(--background));
+    border-radius: 7px;
+    padding: 3px;
+  }
+  .tool-picker label {
+    padding: 6px 7px;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  .tool-picker label.selected {
+    background: hsl(var(--secondary));
+  }
+  .tool-picker:disabled {
+    opacity: 0.5;
+  }
+  .image-viewport {
+    overflow: auto;
+    max-height: 580px;
+    background: #04060a;
+    min-height: 200px;
+  }
+  .image-stage {
+    position: relative;
+    touch-action: none;
+    user-select: none;
+    cursor: move;
+  }
+  .image-stage.draw {
+    cursor: crosshair;
+  }
+  .image-stage.sample {
+    cursor: crosshair;
+  }
+  .image-stage canvas {
+    display: block;
+  }
+  .detection-box {
+    position: absolute;
+    border: 1.5px solid var(--area);
+    pointer-events: none;
+    min-width: 1px;
+    min-height: 1px;
+    box-shadow: 0 0 0 1px #0006;
+  }
+  .detection-box.chosen {
+    background: color-mix(in srgb, var(--area) 7%, transparent);
+  }
+  .detection-box > span {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform: translateY(-100%);
+    font-size: 9px;
+    line-height: 1;
+    padding: 4px 5px;
+    white-space: nowrap;
+    color: #071018;
+    background: var(--area);
+    font-weight: 600;
+  }
+  .detection-box > i {
+    position: absolute;
+    right: -5px;
+    bottom: -5px;
+    width: 10px;
+    height: 10px;
+    background: var(--area);
+    border: 1px solid #071018;
+  }
+  .editor-footer {
+    padding: 11px 20px;
+    border-bottom: 1px solid hsl(var(--border));
+    font-size: 10px;
+    color: hsl(var(--muted-foreground));
+    line-height: 1.8;
+  }
+  .keyboard-control {
+    font-size: 10px;
+    color: hsl(var(--primary));
+    text-align: left;
+    margin-top: 4px;
+    padding: 3px 0;
+  }
+  .keyboard-control:disabled {
+    opacity: 0.5;
+  }
+  .editor-inspector {
+    padding: 20px;
+    display: grid;
+    grid-template-columns: minmax(200px, 0.85fr) minmax(220px, 1.15fr);
+    gap: 20px;
+  }
+  .pixel-inspector {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    font-size: 11px;
+    color: hsl(var(--muted-foreground));
+  }
+  .pixel-inspector > canvas {
+    width: 100px;
+    height: 100px;
+    flex-shrink: 0;
+    background: hsl(var(--background));
+    border: 1px solid hsl(var(--border));
+    border-radius: 5px;
+    image-rendering: pixelated;
+  }
+  .pixel-inspector p {
+    margin-bottom: 8px;
+  }
+  .pixel-inspector :global(button) {
+    font-size: 10px;
+    height: 30px;
+  }
+  .pixel-value {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-variant-numeric: tabular-nums;
+  }
+  .pixel-value span {
+    width: 14px;
+    height: 14px;
+    border: 1px solid #fff4;
+    border-radius: 3px;
+  }
+  .inspection-bar {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid hsl(var(--border));
+    padding: 14px 20px;
+    font-size: 11px;
+    color: hsl(var(--muted-foreground));
+  }
+  .detection-results {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    margin: 20px 0;
+  }
+  .detection-results > div {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .detection-results span {
+    font-size: 10px;
+    color: hsl(var(--muted-foreground));
+  }
+  .detection-results strong {
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .crop-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 13px;
+    margin: 20px 0;
+  }
+  .crop-grid figure {
+    border: 1px solid hsl(var(--border));
+    border-radius: 9px;
+    overflow: hidden;
+    background: hsl(var(--background));
+  }
+  .crop-grid figcaption {
+    font-size: 11px;
+    padding: 10px 12px;
+    border-bottom: 1px solid hsl(var(--border));
+  }
+  .crop-grid img {
+    max-width: 100%;
+    max-height: 220px;
+    object-fit: contain;
+    display: block;
+    margin: 10px auto;
+  }
+  @media (max-width: 1100px) {
+    .editor-inspector {
+      grid-template-columns: 1fr;
+    }
+  }
+  @media (max-width: 760px) {
+    .editor-panel {
+      padding: 0;
+    }
+    .editor-toolbar > div {
+      display: block;
+    }
+    .editor-toolbar .subtle {
+      display: block;
+      font-size: 10px;
+    }
+    .pixel-inspector {
+      gap: 12px;
+    }
+  }
+  .profile-settings h2 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 16px;
+  }
+  .profile-settings details {
+    margin-top: 16px;
+  }
+</style>

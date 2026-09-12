@@ -1,7 +1,6 @@
 [workspace]
 members = ["src-tauri", "crates/fishing-core"]
 default-members = ["src-tauri"]
-exclude = ["legacy/egui"]
 resolver = "2"
 
 [profile.release]
