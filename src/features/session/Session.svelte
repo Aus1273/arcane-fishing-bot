@@ -69,10 +69,12 @@
     if (!file) return;
     imported = '';
     replay = null;
+    recordStatus = '';
     if (file.size > 32 * 1024 * 1024) {
       error = 'Choose a recording no larger than 32 MiB';
       return;
     }
+    processing = true;
     try {
       imported = await file.text();
       const record = JSON.parse(imported);
@@ -82,27 +84,31 @@
     } catch (e) {
       error = `Invalid recording: ${String(e)}`;
       imported = '';
+    } finally {
+      processing = false;
     }
   }
   async function runReplay() {
     processing = true;
     error = '';
+    replay = null;
+    const comparisonConfig = compare ? structuredClone(config) : undefined;
     try {
       const source = imported || JSON.stringify(await getSessionRecording());
       const record = JSON.parse(source);
       recordStatus = `${record.truncated ? 'Truncated at the recording limit. ' : ''}${record.complete ? 'Completed recording.' : 'Partial recording; only this segment can be validated.'}`;
       const baseline = await replaySession(source);
-      if (compare && baseline.errors.length) {
+      if (comparisonConfig && baseline.errors.length) {
         replay = baseline;
         replayCompared = false;
         throw new Error(
           'The original recording does not match its expected decisions. Review those differences before comparing changed settings.',
         );
       }
-      replayCompared = compare;
+      replayCompared = !!comparisonConfig;
       changedSteps = 0;
-      if (compare) {
-        replay = await replaySession(source, config);
+      if (comparisonConfig) {
+        replay = await replaySession(source, comparisonConfig);
         changedSteps = replay.trace.filter((step, i) => {
           const old = baseline.trace[i];
           return (
@@ -202,7 +208,11 @@
           {#each events as event, i}<li>
               <button
                 class:selected={selected?.at_ms === event.at_ms && selected?.phase === event.phase}
-                on:click={() => (selected = selected === event ? null : event)}
+                on:click={() =>
+                  (selected =
+                    selected?.at_ms === event.at_ms && selected?.phase === event.phase
+                      ? null
+                      : event)}
                 aria-expanded={selected?.at_ms === event.at_ms && selected?.phase === event.phase}
                 ><time>{time(event.at_ms)}</time><span
                   ><strong>{event.phase.replaceAll('_', ' ')}</strong><span>{event.reason}</span
@@ -261,7 +271,8 @@
             on:change={loadReplay}
           /></label
         ><label class="checkbox-label"
-          ><input type="checkbox" bind:checked={compare} />Use current settings</label
+          ><input type="checkbox" bind:checked={compare} disabled={processing} />Use current
+          settings</label
         ><Button
           variant="secondary"
           disabled={!isTauri ||

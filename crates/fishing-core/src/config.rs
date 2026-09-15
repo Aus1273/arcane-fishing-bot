@@ -145,6 +145,11 @@ impl BotConfig {
         {
             return Err(anyhow!("Invalid timing, lure value, or feeding interval"));
         }
+        if self.observation_max_age_ms <= self.detection_interval_ms {
+            return Err(anyhow!(
+                "Maximum frame age must exceed the capture interval"
+            ));
+        }
         if u64::from(self.hunger_region.width) * u64::from(self.hunger_region.height) > 100_000 {
             return Err(anyhow!("Energy OCR region is too large"));
         }
@@ -160,6 +165,7 @@ impl BotConfig {
         }
         if let Some(calibration) = &self.calibration {
             if calibration.hotbar_slot_stride > 16384
+                || calibration.hotbar_slot_stride == 0
                 || calibration.hotbar_first_slot.iter().any(|v| *v > 16384)
                 || calibration.hotbar_first_slot[2] == 0
                 || calibration.hotbar_first_slot[3] == 0
@@ -173,6 +179,11 @@ impl BotConfig {
                 || calibration.catch_min_pixels == 0
             {
                 return Err(anyhow!("Invalid screenshot calibration"));
+            }
+            let rod = rod_selection_region(calibration, self.rod_slot);
+            let food = rod_selection_region(calibration, self.food_slot);
+            if (i64::from(rod.x) - i64::from(food.x)).unsigned_abs() < u64::from(rod.width) {
+                return Err(anyhow!("Rod and food selection regions must not overlap"));
             }
             for region in [
                 self.red_region,

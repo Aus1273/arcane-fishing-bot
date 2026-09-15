@@ -30,6 +30,7 @@
   let error = '';
   let notice = '';
   let destroyed = false;
+  let snapshotEvents = 0;
   let unlisten: UnlistenFn | undefined;
   let theme = '';
   let page = 'Session';
@@ -102,7 +103,10 @@
     page = 'Session';
     try {
       await startSession(mode, recordDiagnostics);
-      snapshot = await getStats();
+      const revision = snapshotEvents;
+      const state = await getStats();
+      // Events can arrive while the snapshot request is in flight.
+      if (snapshotEvents === revision) snapshot = state;
       notice = '';
     } catch (e) {
       error = String(e);
@@ -129,6 +133,7 @@
       try {
         if (isTauri) {
           const off = await listen<Snapshot>('state-update', (event) => {
+            snapshotEvents += 1;
             snapshot = event.payload;
           });
           if (destroyed) {
@@ -144,7 +149,7 @@
         ]);
         if (!destroyed) {
           config = saved;
-          snapshot = state;
+          snapshot ??= state;
           presets = available;
         }
       } catch (e) {

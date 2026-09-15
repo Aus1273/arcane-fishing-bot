@@ -86,6 +86,9 @@ pub fn replay_json(recording_json: &str, config: Option<BotConfig>) -> Result<Re
             recording.version
         );
     }
+    if recording.frames.is_empty() {
+        bail!("Recording contains no frames to replay");
+    }
     if recording.frames.len() > MAX_FRAMES {
         bail!("Recording exceeds the {MAX_FRAMES} frame limit");
     }

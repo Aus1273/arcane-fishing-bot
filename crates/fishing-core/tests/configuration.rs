@@ -48,3 +48,24 @@ fn atomic_storage_replaces_existing_file() {
         vec![3]
     );
 }
+
+#[test]
+fn rejects_hotbar_regions_that_cannot_distinguish_rod_from_food() {
+    let mut config = macbook_profile();
+    for stride in [0, 1] {
+        config.calibration.as_mut().unwrap().hotbar_slot_stride = stride;
+        assert!(config.validate().is_err());
+    }
+}
+
+#[test]
+fn capture_interval_cannot_exceed_the_freshness_budget() {
+    let mut config = macbook_profile();
+    config.observation_max_age_ms = 200;
+    config.detection_interval_ms = 500;
+    assert!(config
+        .validate()
+        .unwrap_err()
+        .to_string()
+        .contains("capture interval"));
+}

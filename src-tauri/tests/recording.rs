@@ -190,3 +190,14 @@ fn recording_cap_keeps_startup_evidence_and_marks_truncation() {
     assert!(!recording.complete || recording.truncated);
     assert!(recording.truncated);
 }
+
+#[test]
+fn empty_recording_is_not_reported_as_a_successful_replay() {
+    let recording = SessionRecording::new(macbook_profile(), SessionMode::Observe);
+    assert!(
+        replay_json(&serde_json::to_string(&recording).unwrap(), None)
+            .unwrap_err()
+            .to_string()
+            .contains("no frames")
+    );
+}

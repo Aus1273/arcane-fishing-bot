@@ -42,14 +42,16 @@ pub async fn start_session(
     record: Option<bool>,
 ) -> Result<(), String> {
     let shared = state.inner().clone();
+    let ticket = shared.start_ticket();
     tauri::async_runtime::spawn_blocking(move || {
         shared
-            .start_mode(
+            .start_with_ticket(
                 mode.unwrap_or_default(),
                 record.unwrap_or(false),
                 Arc::new(move |snapshot| {
                     let _ = window.emit("state-update", snapshot);
                 }),
+                ticket,
             )
             .map_err(|e| e.to_string())
     })
