@@ -52,4 +52,9 @@ jobs:
       - run: npm run build
       - run: cargo test --locked --workspace
       - run: cargo clippy --locked --workspace --all-targets -- -D warnings
-      - run: npm run tauri build -- --no-bundle
+      - if: runner.os == 'Windows'
+        run: npm run tauri build -- --no-bundle
+      - if: runner.os == 'macOS'
+        run: |
+          npm run tauri build -- --bundles app
+          codesign --verify --deep --strict --verbose=2 "target/release/bundle/macos/Arcane Fishing Bot.app"
