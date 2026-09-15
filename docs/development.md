@@ -25,7 +25,17 @@
 
 Tauri uses `npm run dev` and `npm run build` internally. No custom build wrapper or generated source step is required. For only a macOS app bundle, run `npm run package -- --bundles app`.
 
-Build output belongs in `target/` and `dist/`; dependencies belong in `node_modules/`. The release app is `target/release/bundle/macos/Arcane Fishing Bot.app`, and Windows installers are under `target/release/bundle/`. Local builds are unsigned. The packaged app contains the production executable; the CLI and benchmark below are developer tools.
+Build output belongs in `target/` and `dist/`; dependencies belong in `node_modules/`. The release app is `target/release/bundle/macos/Arcane Fishing Bot.app`, and Windows installers are under `target/release/bundle/`. Local macOS bundles are ad-hoc signed and are not notarized. Windows local builds are unsigned. The packaged app contains the production executable; the CLI and benchmark below are developer tools.
+
+### macOS signing and permissions
+
+The macOS bundle explicitly uses `signingIdentity: "-"`. This seals the complete app bundle; the Rust linker's executable-only signature is not sufficient after packaging. Verify a local build with:
+
+```sh
+codesign --verify --deep --strict --verbose=2 "target/release/bundle/macos/Arcane Fishing Bot.app"
+```
+
+Ad-hoc signing does not preserve privacy approvals across code changes. After rebuilding, remove stale entries and add the current bundle in both Accessibility and Screen & System Audio Recording, then reopen it. System Audio Recording Only does not grant screen capture. Historical native prototypes used a different bundle ID (`com.aus1273.arcane.native-comparison`); the production app uses `com.arcane.fishing-bot`. A consistent developer signing identity is required for durable identity across updates.
 
 ## Offline tools
 
