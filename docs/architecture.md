@@ -34,7 +34,7 @@ The controller progresses through rod reset/selection, casting, bite wait, reeli
 - Cancellation is preserved during preflight and shutdown. Ctrl + Shift + F12 stops the controller and closes the overlay. Failed shortcut registration blocks automation.
 - The capture worker keeps only the latest timestamped observation. The controller ticks every 10 ms; UI updates occur on transitions or every 250 ms. Late ticks do not generate catch-up click bursts.
 - Old, repeated or future-dated observations cannot authorize new confirmations. Capture failures remain blocking. Optional Energy OCR can fail independently; feeding always requires verified readings.
-- OCR is cancellable and bounded to 2.5 seconds. OS capture already in progress may be uninterruptible, so the observer owns no input.
+- OCR is cancellable and bounded to 2.5 seconds. Live OCR uses the smaller remaining frame-freshness budget, reserving 100 ms for analysis and publication so its error can reach the controller before the frame expires. OS capture already in progress may be uninterruptible, so the observer owns no input.
 - A 200-entry deque bounds event history without shifting the whole list when an event expires. Optional recordings retain the first 30,000 original controller ticks. JSON replay is limited to 32 MiB and preserves capture sequence/timing.
 - Inspection and the wireframe overlay reserve the runtime, preventing overlapping capture, input or configuration writes. The overlay holds its reservation until its native window is destroyed.
 - Settings are validated and frozen during a session. Existing serialized compatibility fields and OS data directories are retained. Statistics checkpoint every 30 seconds and at orderly shutdown.

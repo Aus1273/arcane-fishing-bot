@@ -54,8 +54,20 @@ pub fn check_engine() -> Result<String> {
 
 /// The OCR child is bounded and killed/reaped on cancellation or timeout.
 pub fn read_energy(image: &RgbaImage, cancelled: &AtomicBool) -> Result<EnergyReading> {
-    if cancelled.load(Ordering::Relaxed) {
-        return Err(anyhow!("OCR cancelled"));
+    read_energy_before(
+        image,
+        cancelled,
+        Instant::now() + Duration::from_millis(2500),
+    )
+}
+
+pub fn read_energy_before(
+    image: &RgbaImage,
+    cancelled: &AtomicBool,
+    deadline: Instant,
+) -> Result<EnergyReading> {
+    if cancelled.load(Ordering::Relaxed) || Instant::now() >= deadline {
+        return Err(anyhow!("OCR cancelled or exceeded its time budget"));
     }
     let directory = tempfile::tempdir()?;
     let path = directory.path().join("energy.png");
@@ -72,12 +84,27 @@ pub fn read_energy(image: &RgbaImage, cancelled: &AtomicBool) -> Result<EnergyRe
         "-c",
         "tessedit_char_whitelist=0123456789/",
     ]);
-    let output = bounded_output(&mut command, cancelled)?;
+    let output = bounded_output_before(&mut command, cancelled, deadline)?;
     parse_energy(&output)
         .ok_or_else(|| anyhow!("Energy text was not a valid usable / capacity reading"))
 }
 
 fn bounded_output(command: &mut Command, cancelled: &AtomicBool) -> Result<String> {
+    bounded_output_before(
+        command,
+        cancelled,
+        Instant::now() + Duration::from_millis(2500),
+    )
+}
+
+fn bounded_output_before(
+    command: &mut Command,
+    cancelled: &AtomicBool,
+    deadline: Instant,
+) -> Result<String> {
+    if cancelled.load(Ordering::Relaxed) || Instant::now() >= deadline {
+        return Err(anyhow!("OCR cancelled or exceeded its time budget"));
+    }
     // OCR is a background app task; do not flash a console window on Windows.
     #[cfg(windows)]
     {
@@ -92,12 +119,11 @@ fn bounded_output(command: &mut Command, cancelled: &AtomicBool) -> Result<Strin
         .stderr(Stdio::null())
         .spawn()
         .context("Tesseract could not be started; install it with English language data")?;
-    let started = Instant::now();
     loop {
-        if cancelled.load(Ordering::Relaxed) || started.elapsed() > Duration::from_millis(2500) {
+        if cancelled.load(Ordering::Relaxed) || Instant::now() >= deadline {
             let _ = child.kill();
             let _ = child.wait();
-            return Err(anyhow!("OCR cancelled or exceeded 2.5 seconds"));
+            return Err(anyhow!("OCR cancelled or exceeded its time budget"));
         }
         match child.try_wait() {
             Ok(Some(status)) => {
@@ -119,5 +145,32 @@ fn bounded_output(command: &mut Command, cancelled: &AtomicBool) -> Result<Strin
                 return Err(error.into());
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn expired_ocr_budget_does_not_spawn_a_process() {
+        let mut command = Command::new("this-executable-must-not-be-started");
+        let error = bounded_output_before(&mut command, &AtomicBool::new(false), Instant::now())
+            .unwrap_err();
+        assert!(error.to_string().contains("time budget"));
+    }
+    #[cfg(unix)]
+    #[test]
+    fn slow_ocr_child_is_killed_within_the_frame_budget() {
+        let started = Instant::now();
+        let mut command = Command::new("/bin/sh");
+        command.args(["-c", "exec sleep 5"]);
+        let error = bounded_output_before(
+            &mut command,
+            &AtomicBool::new(false),
+            started + Duration::from_millis(100),
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("time budget"));
+        assert!(started.elapsed() < Duration::from_secs(1));
     }
 }

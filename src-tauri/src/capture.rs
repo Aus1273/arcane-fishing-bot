@@ -37,6 +37,9 @@ pub fn capture_config_region(region: Region, config: &BotConfig) -> Result<RgbaI
     let (x, y, width, height) =
         map_reference_region(region, calibration, display.width, display.height);
     let captured = screen.capture_area(x, y, width, height)?;
+    if captured.width() == 0 || captured.height() == 0 {
+        return Err(anyhow!("Screen capture returned an empty image"));
+    }
     Ok(normalize_capture(
         captured,
         region,
@@ -104,6 +107,7 @@ pub fn map_reference_region(
 }
 
 pub fn capture_frame(config: &BotConfig) -> Result<RgbaImage> {
+    config.validate()?;
     let calibration = config
         .calibration
         .as_ref()
@@ -128,4 +132,18 @@ pub fn crop_frame(image: &RgbaImage, region: Region) -> RgbaImage {
         region.height,
     )
     .to_image()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn invalid_live_config_is_rejected_before_touching_the_display() {
+        let mut config = crate::config::macbook_profile();
+        config.calibration.as_mut().unwrap().frame_width = 0;
+        assert_eq!(
+            capture_frame(&config).unwrap_err().to_string(),
+            "Invalid screenshot calibration"
+        );
+    }
 }

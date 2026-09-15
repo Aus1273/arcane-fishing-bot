@@ -9,7 +9,11 @@ use anyhow::{anyhow, Result};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use image::{DynamicImage, ImageOutputFormat, RgbaImage};
 use serde::Serialize;
-use std::{io::Cursor, sync::atomic::AtomicBool, time::Instant};
+use std::{
+    io::Cursor,
+    sync::atomic::AtomicBool,
+    time::{Duration, Instant},
+};
 
 #[derive(Clone, Copy, Default)]
 pub struct Needs {
@@ -23,6 +27,22 @@ pub fn observe(
     needs: Needs,
     cancel: &AtomicBool,
 ) -> Result<Observation> {
+    observe_before(
+        image,
+        config,
+        needs,
+        cancel,
+        Instant::now() + Duration::from_millis(2500),
+    )
+}
+
+pub fn observe_before(
+    image: &RgbaImage,
+    config: &BotConfig,
+    needs: Needs,
+    cancel: &AtomicBool,
+    deadline: Instant,
+) -> Result<Observation> {
     config.validate()?;
     let calibration = config
         .calibration
@@ -33,9 +53,9 @@ pub fn observe(
             "Screenshot dimensions do not match the selected profile"
         ));
     }
-    let energy = needs
-        .energy
-        .then(|| ocr::read_energy(&crop_frame(image, config.hunger_region), cancel));
+    let energy = needs.energy.then(|| {
+        ocr::read_energy_before(&crop_frame(image, config.hunger_region), cancel, deadline)
+    });
     let (energy, energy_error) = match energy {
         Some(Ok(value)) => (Some(value), None),
         Some(Err(error)) => (None, Some(error.to_string())),
@@ -157,4 +177,29 @@ pub fn inspect_png(encoded: &str, config: &BotConfig) -> Result<Preview> {
 }
 pub fn inspect_live(config: &BotConfig) -> Result<Preview> {
     inspect_frame(capture_frame(config)?, config)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn expired_ocr_is_an_energy_error_not_a_capture_failure() {
+        let config = crate::config::macbook_profile();
+        let calibration = config.calibration.as_ref().unwrap();
+        let image = RgbaImage::new(calibration.frame_width, calibration.frame_height);
+        let observation = observe_before(
+            &image,
+            &config,
+            Needs {
+                energy: true,
+                bite: false,
+            },
+            &AtomicBool::new(false),
+            Instant::now(),
+        )
+        .unwrap();
+        assert!(observation.error.is_none());
+        assert!(observation.energy.is_none());
+        assert!(observation.energy_error.unwrap().contains("time budget"));
+    }
 }

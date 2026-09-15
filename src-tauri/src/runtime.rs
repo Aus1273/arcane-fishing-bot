@@ -17,7 +17,7 @@ use std::{
     fs::File,
     io::{BufWriter, Write},
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         Arc,
     },
     thread::{self, JoinHandle},
@@ -93,6 +93,7 @@ pub struct SharedState {
     pub shortcut_ready: Arc<AtomicBool>,
     cancelled: Arc<AtomicBool>,
     shutting_down: Arc<AtomicBool>,
+    stop_generation: Arc<AtomicU64>,
     activity: Arc<Mutex<Activity>>,
 }
 pub struct InspectionGuard(SharedState);
@@ -125,6 +126,7 @@ impl SharedState {
             shortcut_ready: Arc::new(AtomicBool::new(false)),
             cancelled: Arc::new(AtomicBool::new(true)),
             shutting_down: Arc::new(AtomicBool::new(false)),
+            stop_generation: Arc::new(AtomicU64::new(0)),
             activity: Arc::new(Mutex::new(Activity::default())),
         }
     }
@@ -156,6 +158,7 @@ impl SharedState {
         Ok(())
     }
     pub fn stop(&self) {
+        self.stop_generation.fetch_add(1, Ordering::SeqCst);
         self.cancelled.store(true, Ordering::SeqCst);
     }
     pub fn shutdown(&self) {
@@ -171,21 +174,33 @@ impl SharedState {
     pub fn start(&self, emit: Arc<dyn Fn(Snapshot) + Send + Sync>) -> Result<()> {
         self.start_mode(SessionMode::Automate, false, emit)
     }
+    /// Capture this before queueing startup work so a later Stop invalidates it.
+    pub fn start_ticket(&self) -> u64 {
+        self.stop_generation.load(Ordering::SeqCst)
+    }
     /// Keep the cancellation boundary testable without initializing capture or native input.
     fn preflight(
         &self,
         config: &BotConfig,
         mode: SessionMode,
+        ticket: u64,
         check: impl FnOnce(&BotConfig, SessionMode, bool) -> readiness::Readiness,
     ) -> Result<()> {
         // Stop during preflight must not be overwritten when workers start.
         self.cancelled.store(false, Ordering::SeqCst);
+        if ticket != self.start_ticket() || self.shutting_down.load(Ordering::SeqCst) {
+            self.stop();
+            return Err(anyhow!("Session start was cancelled"));
+        }
         let report = check(config, mode, self.shortcut_ready.load(Ordering::SeqCst));
         if !report.ready {
             self.stop();
             return Err(anyhow!(report.failure_message()));
         }
-        if self.cancelled.load(Ordering::SeqCst) || self.shutting_down.load(Ordering::SeqCst) {
+        if self.cancelled.load(Ordering::SeqCst)
+            || self.shutting_down.load(Ordering::SeqCst)
+            || ticket != self.start_ticket()
+        {
             return Err(anyhow!("Session start was cancelled"));
         }
         Ok(())
@@ -195,6 +210,15 @@ impl SharedState {
         mode: SessionMode,
         record: bool,
         emit: Arc<dyn Fn(Snapshot) + Send + Sync>,
+    ) -> Result<()> {
+        self.start_with_ticket(mode, record, emit, self.start_ticket())
+    }
+    pub fn start_with_ticket(
+        &self,
+        mode: SessionMode,
+        record: bool,
+        emit: Arc<dyn Fn(Snapshot) + Send + Sync>,
+        ticket: u64,
     ) -> Result<()> {
         let mut activity = self.activity.lock();
         if Self::busy(&activity)
@@ -212,7 +236,7 @@ impl SharedState {
             let _ = handle.join();
         }
         let config = self.config.read().clone();
-        self.preflight(&config, mode, readiness::check)?;
+        self.preflight(&config, mode, ticket, readiness::check)?;
         let started = Instant::now();
         let latest = Arc::new(RwLock::new(None));
         let metrics = Arc::new(RwLock::new(SessionMetrics::default()));
@@ -236,7 +260,27 @@ impl SharedState {
                 let capture_ms = capture_start.elapsed().as_millis() as u64;
                 let analysis_start = Instant::now();
                 let result = image.and_then(|image| {
-                    diagnostics::observe(&image, &observer_config, need, &observer_cancel)
+                    // Reserve time to publish an OCR error before the capture becomes stale.
+                    // The controller's Continue/Pause policy can then handle that error.
+                    let budget = observer_config
+                        .observation_max_age_ms
+                        .saturating_sub(100)
+                        .min(2500);
+                    // Until publication the controller still sees the previous frame.
+                    // Its expiry, not only the new capture's, limits blocking OCR.
+                    let freshness_start = observer_latest
+                        .read()
+                        .as_ref()
+                        .map_or(capture_start, |obs: &Observation| {
+                            started + Duration::from_millis(obs.captured_at_ms)
+                        });
+                    diagnostics::observe_before(
+                        &image,
+                        &observer_config,
+                        need,
+                        &observer_cancel,
+                        freshness_start + Duration::from_millis(budget),
+                    )
                 });
                 let analysis_ms = analysis_start.elapsed().as_millis() as u64;
                 sequence += 1;
@@ -499,11 +543,16 @@ mod tests {
     fn stop_during_successful_preflight_is_not_overwritten() {
         let config = crate::config::macbook_profile();
         let shared = SharedState::from_saved(config.clone(), LifetimeStats::default());
-        let result = shared.preflight(&config, SessionMode::Observe, |_, _, _| {
-            assert!(!shared.cancelled.load(Ordering::SeqCst));
-            shared.stop();
-            ready()
-        });
+        let result = shared.preflight(
+            &config,
+            SessionMode::Observe,
+            shared.start_ticket(),
+            |_, _, _| {
+                assert!(!shared.cancelled.load(Ordering::SeqCst));
+                shared.stop();
+                ready()
+            },
+        );
         assert_eq!(
             result.unwrap_err().to_string(),
             "Session start was cancelled"
@@ -516,8 +565,11 @@ mod tests {
     fn failed_preflight_restores_cancellation() {
         let config = crate::config::macbook_profile();
         let shared = SharedState::from_saved(config.clone(), LifetimeStats::default());
-        let result = shared.preflight(&config, SessionMode::Observe, |_, _, _| {
-            readiness::Readiness {
+        let result = shared.preflight(
+            &config,
+            SessionMode::Observe,
+            shared.start_ticket(),
+            |_, _, _| readiness::Readiness {
                 ready: false,
                 checks: vec![readiness::Check {
                     id: "test".into(),
@@ -525,8 +577,8 @@ mod tests {
                     status: "fail".into(),
                     detail: "Prerequisite unavailable".into(),
                 }],
-            }
-        });
+            },
+        );
         assert_eq!(result.unwrap_err().to_string(), "Prerequisite unavailable");
         assert!(shared.cancelled.load(Ordering::SeqCst));
     }
@@ -542,11 +594,16 @@ mod tests {
         let start = thread::spawn(move || {
             // Production start_mode holds this lock throughout preflight.
             let _activity = starter.activity.lock();
-            starter.preflight(&config, SessionMode::Observe, |_, _, _| {
-                entered_tx.send(()).unwrap();
-                release_rx.recv_timeout(Duration::from_secs(2)).unwrap();
-                ready()
-            })
+            starter.preflight(
+                &config,
+                SessionMode::Observe,
+                starter.start_ticket(),
+                |_, _, _| {
+                    entered_tx.send(()).unwrap();
+                    release_rx.recv_timeout(Duration::from_secs(2)).unwrap();
+                    ready()
+                },
+            )
         });
         entered_rx.recv_timeout(Duration::from_secs(2)).unwrap();
         let closer = shared.clone();
@@ -565,6 +622,30 @@ mod tests {
         assert!(shared.cancelled.load(Ordering::SeqCst));
         assert!(!shared.session.read().running);
     }
+    #[test]
+    fn stop_invalidates_start_queued_before_the_worker_runs() {
+        let config = crate::config::macbook_profile();
+        let shared = SharedState::from_saved(config.clone(), LifetimeStats::default());
+        let ticket = shared.start_ticket();
+        shared.stop();
+        let error = shared
+            .preflight(&config, SessionMode::Observe, ticket, |_, _, _| {
+                panic!("A cancelled start must not check permissions or create workers")
+            })
+            .unwrap_err();
+        assert_eq!(error.to_string(), "Session start was cancelled");
+        assert!(shared.cancelled.load(Ordering::SeqCst));
+        // An intentional later start can still proceed.
+        shared
+            .preflight(
+                &config,
+                SessionMode::Observe,
+                shared.start_ticket(),
+                |_, _, _| ready(),
+            )
+            .unwrap();
+    }
+
     #[test]
     fn observe_does_not_construct_input() {
         let result = input_for_mode::<()>(SessionMode::Observe, || {
